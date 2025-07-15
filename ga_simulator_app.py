@@ -6,6 +6,7 @@ import threading
 import time
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from asteval import Interpreter
 
 
 class GASimulatorApp:
@@ -274,9 +275,16 @@ class GASimulatorApp:
                 "Sphere Function",
                 "Rastrigin Function",
                 "Traveling Salesperson Problem (TSP)",
-                "Knapsack Problem"])
+                "Knapsack Problem",
+                "Custom Function"])
         self.problem_combo.grid(row=7, column=1, sticky="we", columnspan=2)
         self.problem_combo.current(0)
+        self.problem_combo.bind("<<ComboboxSelected>>", self.toggle_custom_function_input)
+
+        # Custom Function Input
+        self.custom_function_var = tk.StringVar()
+        self.custom_function_label = ttk.Label(parent_frame, text="Custom Function:")
+        self.custom_function_entry = ttk.Entry(parent_frame, textvariable=self.custom_function_var, width=30)
 
         # TSP Number of Cities
         self.tsp_cities_var = tk.IntVar(value=18)
@@ -292,6 +300,14 @@ class GASimulatorApp:
         self.tsp_cities_scale.grid(row=8, column=1, sticky="we")
         self.tsp_cities_count_label = ttk.Label(parent_frame, text="18")
         self.tsp_cities_count_label.grid(row=8, column=2, padx=5)
+
+    def toggle_custom_function_input(self, event=None):
+        if self.problem_var.get() == "Custom Function":
+            self.custom_function_label.grid(row=9, column=0, sticky="w", pady=2)
+            self.custom_function_entry.grid(row=9, column=1, sticky="we", columnspan=2)
+        else:
+            self.custom_function_label.grid_forget()
+            self.custom_function_entry.grid_forget()
 
     def create_control_widgets(self, parent_frame):
         self.start_button = ttk.Button(
@@ -343,6 +359,10 @@ class GASimulatorApp:
     def start_ga(self):
         if self.problem_var.get() == "Traveling Salesperson Problem (TSP)":
             self.generate_tsp_cities()
+        if self.problem_var.get() == "Custom Function":
+            if not self.ga_solver.is_valid_function(self.custom_function_var.get()):
+                tk.messagebox.showerror("Invalid Function", "The custom function is invalid. Please check the syntax.")
+                return
         self.start_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         self.status_label.config(text="Status: Running...")
@@ -415,6 +435,7 @@ class GASolver:
         self.population = []
         self.fitnesses = []
         self.stop_event = threading.Event()
+        self.aeval = Interpreter()
 
     def run_genetic_algorithm_gui(self):
         self.stop_event.clear()
@@ -520,6 +541,8 @@ class GASolver:
             return len(self.app.TSP_CITIES)
         elif problem_type == "Knapsack Problem":
             return len(self.app.KNAPSACK_ITEMS)
+        elif problem_type == "Custom Function":
+            return 2  # Default to 2 variables (x, y) for custom functions
         return 2  # For Sphere and Rastrigin
 
     def calculate_fitness(self, problem_type):
@@ -540,6 +563,9 @@ class GASolver:
                         chromosome,
                         self.app.KNAPSACK_ITEMS,
                         self.app.KNAPSACK_CAPACITY))
+            elif problem_type == "Custom Function":
+                func_str = self.app.custom_function_var.get()
+                self.fitnesses.append(self.custom_function_fitness(chromosome, func_str))
 
     def create_next_generation(self, problem_type, gene_range):
         next_population = []
@@ -615,6 +641,27 @@ class GASolver:
         if total_weight > capacity:
             return 0  # Penalize for overweight
         return total_value
+
+    def custom_function_fitness(self, chromosome, func_str):
+        try:
+            self.aeval.symtable['x'] = chromosome[0]
+            if len(chromosome) > 1:
+                self.aeval.symtable['y'] = chromosome[1]
+            # Add more variables if needed, e.g., z for 3D functions
+            # self.aeval.symtable['z'] = chromosome[2]
+            result = self.aeval.eval(func_str)
+            return 1 / (1 + abs(result))
+        except Exception as e:
+            # Handle cases where the function is invalid
+            print(f"Error evaluating custom function: {e}")
+            return 0
+
+    def is_valid_function(self, func_str):
+        try:
+            self.aeval.parse(func_str)
+            return True
+        except Exception:
+            return False
 
     # --- GA Operators ---
     def initialize_population(
