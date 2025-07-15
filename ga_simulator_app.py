@@ -430,7 +430,8 @@ class GASolver:
                 generation + 1,
                 best_fitness,
                 avg_fitness,
-                best_solution)
+                best_solution,
+                problem_type)
 
             next_population = self.create_next_generation(
                 problem_type, gene_range)
@@ -438,7 +439,7 @@ class GASolver:
 
         self.app.master.after(0, self.finalize_run)
 
-    def update_gui(self, generation, best_fitness, avg_fitness, best_solution):
+    def update_gui(self, generation, best_fitness, avg_fitness, best_solution, problem_type):
         self.app.generation_label.config(
             text=f"Generation: {generation} / {self.app.generations_var.get()}")
         self.app.best_fitness_label.config(
@@ -449,17 +450,50 @@ class GASolver:
                                        'float_kind': lambda x: "%.4f" % x})
         self.app.best_solution_label.config(
             text=f"Best Solution: {solution_str}")
-        self.update_plot(generation)
+        self.update_plot(generation, best_solution, problem_type)
 
-    def update_plot(self, generation):
+    def update_plot(self, generation, best_solution=None, problem_type=None):
         self.app.ax.clear()
-        self.app.ax.plot(self.best_fitness_history, label="Best Fitness")
-        self.app.ax.plot(self.avg_fitness_history, label="Average Fitness")
-        self.app.ax.set_xlabel("Generation")
-        self.app.ax.set_ylabel("Fitness")
-        self.app.ax.legend()
-        self.app.ax.grid(True)
+        if problem_type == "Traveling Salesperson Problem (TSP)" and best_solution is not None:
+            self.plot_tsp_tour(best_solution)
+        elif problem_type == "Knapsack Problem" and best_solution is not None:
+            self.plot_knapsack_solution(best_solution)
+        else:
+            self.app.ax.plot(self.best_fitness_history, label="Best Fitness")
+            self.app.ax.plot(self.avg_fitness_history, label="Average Fitness")
+            self.app.ax.set_xlabel("Generation")
+            self.app.ax.set_ylabel("Fitness")
+            self.app.ax.legend()
+            self.app.ax.grid(True)
         self.app.canvas.draw()
+
+    def plot_tsp_tour(self, tour):
+        self.app.ax.clear()
+        cities = self.app.TSP_CITIES
+        self.app.ax.scatter([c[0] for c in cities], [c[1] for c in cities], c='red')
+        for i in range(len(tour)):
+            start_city_coords = cities[tour[i]]
+            end_city_coords = cities[tour[(i + 1) % len(tour)]]
+            self.app.ax.plot([start_city_coords[0], end_city_coords[0]],
+                             [start_city_coords[1], end_city_coords[1]], 'b-')
+        self.app.ax.set_title("Best TSP Tour")
+        self.app.ax.set_xlabel("X Coordinate")
+        self.app.ax.set_ylabel("Y Coordinate")
+
+    def plot_knapsack_solution(self, solution):
+        self.app.ax.clear()
+        items = self.app.KNAPSACK_ITEMS
+        selected_items = [items[i]['name'] for i, gene in enumerate(solution) if gene == 1]
+        total_value = sum(items[i]['value'] for i, gene in enumerate(solution) if gene == 1)
+        total_weight = sum(items[i]['weight'] for i, gene in enumerate(solution) if gene == 1)
+
+        y_pos = np.arange(len(selected_items))
+        self.app.ax.barh(y_pos, [items[i]['value'] for i, gene in enumerate(solution) if gene == 1], align='center')
+        self.app.ax.set_yticks(y_pos)
+        self.app.ax.set_yticklabels(selected_items)
+        self.app.ax.invert_yaxis()  # labels read top-to-bottom
+        self.app.ax.set_xlabel('Value')
+        self.app.ax.set_title(f'Knapsack Solution: Value={total_value}, Weight={total_weight}')
 
     def finalize_run(self):
         self.app.status_label.config(text="Status: Completed")
