@@ -14,8 +14,22 @@ class GASimulatorApp:
         master.title("Genetic Algorithm Simulator")
         master.geometry("1000x700")
 
+        # --- Style ---
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
+        self.style.configure("TFrame", background="#2E2E2E")
+        self.style.configure("TLabel", background="#2E2E2E", foreground="white")
+        self.style.configure("TButton", background="#4A4A4A", foreground="white")
+        self.style.map("TButton", background=[('active', '#6E6E6E')])
+        self.style.configure("TScale", background="#2E2E2E", troughcolor="#4A4A4A")
+        self.style.configure("TCombobox", fieldbackground="#4A4A4A", background="#2E2E2E", foreground="white")
+        self.style.configure("TLabelframe", background="#2E2E2E", bordercolor="#4A4A4A")
+        self.style.configure("TLabelframe.Label", background="#2E2E2E", foreground="white")
+
+        master.configure(bg="#2E2E2E")
+
         # Main frame
-        self.main_frame = ttk.Frame(master, padding="10")
+        self.main_frame = ttk.Frame(master, padding="10", style="TFrame")
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Configure resizing
@@ -64,12 +78,7 @@ class GASimulatorApp:
         self.setup_problem_data()
 
     def setup_problem_data(self):
-        self.TSP_CITIES = [
-            (60, 200), (180, 200), (80, 180), (140, 180), (20, 160),
-            (100, 160), (200, 160), (120, 140), (40, 120), (160, 120),
-            (180, 100), (60, 80), (120, 80), (100, 60), (20, 40),
-            (200, 40), (40, 20), (160, 20)
-        ]
+        self.generate_tsp_cities()
         self.KNAPSACK_ITEMS = [
             {"name": "Item A", "weight": 10, "value": 60},
             {"name": "Item B", "weight": 20, "value": 100},
@@ -80,6 +89,10 @@ class GASimulatorApp:
             {"name": "Item G", "weight": 35, "value": 150},
         ]
         self.KNAPSACK_CAPACITY = 50
+
+    def generate_tsp_cities(self):
+        num_cities = self.tsp_cities_var.get()
+        self.TSP_CITIES = [(random.randint(0, 400), random.randint(0, 400)) for _ in range(num_cities)]
 
     def create_settings_widgets(self, parent_frame):
         # Population Size
@@ -265,6 +278,21 @@ class GASimulatorApp:
         self.problem_combo.grid(row=7, column=1, sticky="we", columnspan=2)
         self.problem_combo.current(0)
 
+        # TSP Number of Cities
+        self.tsp_cities_var = tk.IntVar(value=18)
+        self.tsp_cities_label = ttk.Label(parent_frame, text="Number of Cities (TSP):")
+        self.tsp_cities_label.grid(row=8, column=0, sticky="w", pady=2)
+        self.tsp_cities_scale = ttk.Scale(
+            parent_frame,
+            from_=5,
+            to=50,
+            variable=self.tsp_cities_var,
+            orient=tk.HORIZONTAL,
+            command=lambda v: self.tsp_cities_count_label.config(text=f"{int(float(v))}"))
+        self.tsp_cities_scale.grid(row=8, column=1, sticky="we")
+        self.tsp_cities_count_label = ttk.Label(parent_frame, text="18")
+        self.tsp_cities_count_label.grid(row=8, column=2, padx=5)
+
     def create_control_widgets(self, parent_frame):
         self.start_button = ttk.Button(
             parent_frame, text="Start GA", command=self.start_ga)
@@ -313,6 +341,8 @@ class GASimulatorApp:
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
     def start_ga(self):
+        if self.problem_var.get() == "Traveling Salesperson Problem (TSP)":
+            self.generate_tsp_cities()
         self.start_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         self.status_label.config(text="Status: Running...")
