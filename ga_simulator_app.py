@@ -454,6 +454,9 @@ class GASolver:
                 break
 
             self.calculate_fitness(problem_type)
+            if not self.fitnesses:
+                print("Warning: Fitness list is empty. Skipping generation.")
+                continue
             best_fitness = np.max(self.fitnesses)
             avg_fitness = np.mean(self.fitnesses)
             self.best_fitness_history.append(best_fitness)
@@ -652,11 +655,15 @@ class GASolver:
             result = self.aeval.eval(func_str)
             return 1 / (1 + abs(result))
         except Exception as e:
-            # Handle cases where the function is invalid
-            print(f"Error evaluating custom function: {e}")
+            self.app.master.after(0, self.report_error, f"Error evaluating custom function: {e}")
             return 0
 
+    def report_error(self, message):
+        tk.messagebox.showerror("Custom Function Error", message)
+
     def is_valid_function(self, func_str):
+        if not func_str:
+            return False
         try:
             self.aeval.parse(func_str)
             return True
