@@ -98,9 +98,7 @@ class GASimulatorApp:
             variable=self.pop_size_var,
             orient=tk.HORIZONTAL,
             command=lambda v: self.pop_size_label.config(
-                text=f"{
-                    int(
-                        float(v))}")).grid(
+                text=f"{int(float(v))}")).grid(
             row=0,
             column=1,
             sticky="we")
@@ -123,9 +121,7 @@ class GASimulatorApp:
             variable=self.generations_var,
             orient=tk.HORIZONTAL,
             command=lambda v: self.generations_label.config(
-                text=f"{
-                    int(
-                        float(v))}")).grid(
+                text=f"{int(float(v))}")).grid(
             row=1,
             column=1,
             sticky="we")
@@ -148,8 +144,7 @@ class GASimulatorApp:
             variable=self.crossover_rate_var,
             orient=tk.HORIZONTAL,
             command=lambda v: self.crossover_rate_label.config(
-                text=f"{
-                    float(v):.2f}")).grid(
+                text=f"{float(v):.2f}")).grid(
             row=2,
             column=1,
             sticky="we")
@@ -172,8 +167,7 @@ class GASimulatorApp:
             variable=self.mutation_rate_var,
             orient=tk.HORIZONTAL,
             command=lambda v: self.mutation_rate_label.config(
-                text=f"{
-                    float(v):.2f}")).grid(
+                text=f"{float(v):.2f}")).grid(
             row=3,
             column=1,
             sticky="we")
@@ -196,8 +190,7 @@ class GASimulatorApp:
             variable=self.mutation_strength_var,
             orient=tk.HORIZONTAL,
             command=lambda v: self.mutation_strength_label.config(
-                text=f"{
-                    float(v):.2f}")).grid(
+                text=f"{float(v):.2f}")).grid(
             row=4,
             column=1,
             sticky="we")
@@ -220,9 +213,7 @@ class GASimulatorApp:
             variable=self.elitism_count_var,
             orient=tk.HORIZONTAL,
             command=lambda v: self.elitism_count_label.config(
-                text=f"{
-                    int(
-                        float(v))}")).grid(
+                text=f"{int(float(v))}")).grid(
             row=5,
             column=1,
             sticky="we")
@@ -394,12 +385,6 @@ class GASolver:
         self.population = []
         self.fitnesses = []
         self.stop_event = threading.Event()
-
-    def run_genetic_algorithm_gui(self):
-        self.stop_event.clear()
-        # This will be the main loop, for now, we just set it up
-        print("GA Started")
-        self.app.master.after(100, self.run_generation)
 
     def run_genetic_algorithm_gui(self):
         self.stop_event.clear()
