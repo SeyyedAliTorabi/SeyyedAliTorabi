@@ -436,6 +436,9 @@ class GASolver:
         self.fitnesses = []
         self.stop_event = threading.Event()
         self.aeval = Interpreter()
+        # Add common numpy functions to the interpreter's symbol table
+        for name in ('cos', 'sin', 'tan', 'pi', 'e'):
+            self.aeval.symtable[name] = getattr(np, name)
 
     def run_genetic_algorithm_gui(self):
         self.stop_event.clear()
