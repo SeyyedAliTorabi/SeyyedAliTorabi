@@ -2,12 +2,13 @@
 # Smart Teacher: Course Evaluation App
 #
 # To run this application, you need to install the following libraries:
-# pip install PyQt6 requests beautifulsoup4 together
+# pip install PyQt6 requests beautifulsoup4 together markdown
 # =================================================================================
 
 import sys
 import re
 import requests
+import markdown
 import together
 from together import Together
 from bs4 import BeautifulSoup
@@ -32,6 +33,7 @@ SYSTEM_PROMPT = """
 **قوانین بسیار مهم خروجی تو:**
 * **خروجی مطلقاً فقط مکالمه:** پاسخ‌های تو باید شامل هیچ‌گونه فکر داخلی، تحلیل‌های خودت از ورودی، جزئیات فرایند پردازش (مثل "محتوا دریافت شد"، "در حال تحلیل هستم")، یا داده‌های خامی مثل URL، محتوای استخراج شده‌ی دوره، یا نقل قول از ورودی خودت نباشد.
 * **همیشه به زبان فارسی روان و بدون اشتباه صحبت کن.**
+* **تو میتوانی از مارک‌داون (مانند **bold** یا *italics* یا لیست‌ها) برای قالب‌بندی پاسخ‌هایت استفاده کنی.**
 * **مکالمه عمیق و گام به گام:**
     * **شروع مکالمه (پس از دریافت محتوای دوره):** مکالمه را با پرسیدن تنها یک سوال مشخص و عمیق برای درک اهداف کلی کاربر شروع کن.
     * **ادامه مکالمه (پس از پاسخ کاربر):**
@@ -108,7 +110,7 @@ class SmartTeacherApp(QWidget):
         # --- Conversation Display ---
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
-        self.chat_display.setFont(QFont("Arial", 14))
+        # self.chat_display.setFont(QFont("Arial", 14)) # Font is now set in stylesheet
 
         # --- Status Label ---
         self.status_label = QLabel("")
@@ -149,8 +151,9 @@ class SmartTeacherApp(QWidget):
             QTextEdit {
                 background-color: #151515;
                 border: 1px solid #444;
-                padding: 15px;
+                padding: 10px;
                 border-radius: 5px;
+                font-size: 14px;
             }
             QPushButton {
                 background-color: #2D2D2D;
@@ -202,9 +205,41 @@ class SmartTeacherApp(QWidget):
         self.user_input.setEnabled(False)
         self.send_button.setEnabled(False)
 
-    def _append_message(self, sender, message, color):
-        """Appends a formatted message to the chat display."""
-        self.chat_display.append(f"<p style='color:{color};'>{sender}: {message}</p>")
+    def _append_message(self, role, text):
+        """
+        Appends a message to the chat display, styling it as a chat bubble
+        and rendering its content from Markdown to HTML.
+        """
+        # Convert markdown to html
+        html_content = markdown.markdown(text, extensions=['fenced_code', 'tables'])
+
+        # Determine alignment and bubble color based on role
+        if role == 'user':
+            # User messages on the right
+            align = "right"
+            bubble_style = "background-color: #2b5278; color: #f0f0f0; border-top-right-radius: 0;"
+            sender_html = "" # No sender name for user
+        elif role == 'ai':
+            # AI messages on the left
+            align = "left"
+            bubble_style = "background-color: #363636; color: #f0f0f0; border-top-left-radius: 0;"
+            sender_html = "<b style='color:#60A0FF;'>استاد هوشمند</b><br>"
+        else: # System or Error messages
+            align = "center"
+            bubble_style = "background-color: transparent; color: #999; font-size: 12px;"
+            sender_html = ""
+
+        # Create the bubble
+        bubble_html = f"""
+        <div align='{align}'>
+            <div style='display: inline-block; max-width: 80%; text-align: left; padding: 12px; margin-bottom: 8px; border-radius: 15px; {bubble_style}'>
+                {sender_html}{html_content}
+            </div>
+        </div>
+        """
+        self.chat_display.append(bubble_html)
+        self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
+
 
     # --- Core Logic Methods ---
 
@@ -216,7 +251,7 @@ class SmartTeacherApp(QWidget):
             return
 
         self.reset_chat()
-        self._append_message("شما", f"در حال پردازش دوره از لینک: {url}", "#E0E0E0")
+        self._append_message("user", f"در حال پردازش دوره از لینک: *{url}*")
         self._set_ui_loading(True, "در حال استخراج محتوای دوره...")
 
         self._run_in_thread(self._scrape_course_content, url, on_finish_slot=self._on_scraping_complete)
@@ -224,8 +259,7 @@ class SmartTeacherApp(QWidget):
     def _on_scraping_complete(self, result):
         """Callback for when web scraping is finished."""
         course_title, course_content = result
-        self._append_message("سیستم", f"محتوای دوره '{course_title}' با موفقیت استخراج شد.", "#888")
-        self.chat_display.append("<hr>")
+        self._append_message("system", f"<b>تحلیل دوره '{course_title}' آغاز شد...</b>")
 
         # Prepare the first message for the AI
         initial_user_message = f"محتوای دوره برای تحلیل:\nعنوان: {course_title}\nمحتوا: {course_content}"
@@ -240,7 +274,7 @@ class SmartTeacherApp(QWidget):
         if not reply:
             return
 
-        self._append_message("شما", reply, "#E0E0E0")
+        self._append_message("user", reply)
         self.user_input.clear()
         self.chat_history.append({'role': 'user', 'content': reply})
 
@@ -251,7 +285,7 @@ class SmartTeacherApp(QWidget):
         """Callback for when the AI API call is finished."""
         cleaned_response = self._clean_ai_response(ai_response)
         self.chat_history.append({'role': 'assistant', 'content': cleaned_response})
-        self._append_message("استاد هوشمند", cleaned_response, "#60A0FF")
+        self._append_message("ai", cleaned_response)
         self._set_ui_loading(False)
         self.user_input.setEnabled(True)
         self.send_button.setEnabled(True)
@@ -259,7 +293,7 @@ class SmartTeacherApp(QWidget):
 
     def _on_task_error(self, error_message):
         """Callback for handling errors from the worker thread."""
-        self._append_message("خطا", error_message, "#FF4040")
+        self._append_message("system", f"<b style='color:#FF4040;'>خطا: {error_message}</b>")
         self._set_ui_loading(False)
         self.user_input.setEnabled(False)
         self.send_button.setEnabled(False)
