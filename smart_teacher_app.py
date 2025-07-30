@@ -9,6 +9,7 @@ import sys
 import re
 import requests
 import together
+from together import Together
 from bs4 import BeautifulSoup
 
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
@@ -308,8 +309,8 @@ class SmartTeacherApp(QWidget):
     def _get_ai_response(self, history):
         """Calls the LLM API and returns the response."""
         try:
-            together.api_key = API_KEY
-            response = together.Chat.create(
+            client = Together(api_key=API_KEY)
+            response = client.chat.completions.create(
                 model="deepseek-ai/deepseek-llm-67b-chat",
                 messages=history,
                 max_tokens=1024,
