@@ -311,7 +311,7 @@ class SmartTeacherApp(QWidget):
         try:
             client = Together(api_key=API_KEY)
             response = client.chat.completions.create(
-                model="deepseek-ai/deepseek-llm-67b-chat",
+                model="deepseek-ai/DeepSeek-V3",
                 messages=history,
                 max_tokens=1024,
                 temperature=0.7,
