@@ -218,7 +218,7 @@ class SmartTeacherApp(QWidget):
         self._append_message("شما", f"در حال پردازش دوره از لینک: {url}", "#E0E0E0")
         self._set_ui_loading(True, "در حال استخراج محتوای دوره...")
 
-        self._run_in_thread(self._scrape_course_content, url, self._on_scraping_complete)
+        self._run_in_thread(self._scrape_course_content, url, on_finish_slot=self._on_scraping_complete)
 
     def _on_scraping_complete(self, result):
         """Callback for when web scraping is finished."""
@@ -231,7 +231,7 @@ class SmartTeacherApp(QWidget):
         self.chat_history.append({'role': 'user', 'content': initial_user_message})
 
         self._set_ui_loading(True, "در حال دریافت پاسخ از استاد هوشمند...")
-        self._run_in_thread(self._get_ai_response, self.chat_history, self._on_ai_complete)
+        self._run_in_thread(self._get_ai_response, self.chat_history, on_finish_slot=self._on_ai_complete)
 
     def _send_user_reply(self):
         """Handles sending the user's typed reply to the AI."""
@@ -244,7 +244,7 @@ class SmartTeacherApp(QWidget):
         self.chat_history.append({'role': 'user', 'content': reply})
 
         self._set_ui_loading(True, "در حال دریافت پاسخ از استاد هوشمند...")
-        self._run_in_thread(self._get_ai_response, self.chat_history, self._on_ai_complete)
+        self._run_in_thread(self._get_ai_response, self.chat_history, on_finish_slot=self._on_ai_complete)
 
     def _on_ai_complete(self, ai_response):
         """Callback for when the AI API call is finished."""
