@@ -6,7 +6,10 @@
 # =================================================================================
 
 import sys
+import os
+import json
 import re
+from datetime import datetime
 import requests
 import markdown
 import together
@@ -262,16 +265,49 @@ class SmartTeacherApp(QWidget):
             self.course_file_path = file_path
             self.file_path_display.setText(file_path)
 
+    def _get_cache_path(self, file_path):
+        """Generates a corresponding cache file path for a given file path."""
+        return f"{file_path}.cache.json"
+
     def _start_evaluation(self):
-        """Handles the 'Start Analysis' button click."""
+        """
+        Handles the 'Start Analysis' button click, including checking for a valid cache
+        before proceeding with a full analysis.
+        """
         if not self.course_file_path:
             QMessageBox.warning(self, "فایل انتخاب نشده", "لطفاً ابتدا یک فایل متنی حاوی لینک‌ها را انتخاب کنید.")
             return
 
+        cache_path = self._get_cache_path(self.course_file_path)
+
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+
+                # Validate cache by comparing modification times
+                source_file_mod_time = os.path.getmtime(self.course_file_path)
+                cached_source_mod_time = cache_data.get("source_mod_time", 0)
+
+                if source_file_mod_time <= cached_source_mod_time:
+                    reply = QMessageBox.question(self, "استفاده از کش",
+                                                 "یک تحلیل آماده و معتبر برای این فایل پیدا شد. آیا مایل به استفاده از آن هستید؟\n\n"
+                                                 "انتخاب 'Yes' از تحلیل ذخیره‌شده استفاده می‌کند. انتخاب 'No' تمام دوره‌ها را مجدداً تحلیل خواهد کرد.",
+                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                                 QMessageBox.StandardButton.Yes)
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self.reset_chat()
+                        self._append_message("system", f"در حال بارگذاری تحلیل از فایل کش: *{cache_path.split('/')[-1]}*")
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(100, lambda: self._on_processing_complete(cache_data["content"]))
+                        return
+            except (json.JSONDecodeError, KeyError, FileNotFoundError) as e:
+                print(f"خطا در خواندن یا اعتبارسنجی فایل کش: {e}. کش نادیده گرفته می‌شود.")
+
+        # --- Proceed with full analysis if cache is not used ---
         self.reset_chat()
         self._append_message("user", f"شروع تحلیل دوره‌ها از فایل: *{self.course_file_path.split('/')[-1]}*")
         self._set_ui_loading(True, "در حال خواندن فایل دوره‌ها...")
-
         self._run_in_thread(self._process_courses_from_file, self.course_file_path, on_finish_slot=self._on_processing_complete)
 
     def _process_courses_from_file(self, worker, file_path):
@@ -318,6 +354,9 @@ class SmartTeacherApp(QWidget):
             self._on_task_error("هیچ محتوای قابل استفاده‌ای از فایل دوره‌ها استخراج نشد. لطفاً فایل و لینک‌های درون آن را بررسی کنید.")
             return
 
+        # Cache the successful results for future use
+        self._cache_results(self.course_file_path, aggregated_content)
+
         self._append_message("system", "<b>تحلیل تمام دوره‌ها به پایان رسید. گفتگو با مشاور هوشمند آغاز می‌شود...</b>")
 
         # Prepare the first message for the AI
@@ -326,6 +365,22 @@ class SmartTeacherApp(QWidget):
 
         self._set_ui_loading(True, "در حال دریافت پاسخ از مشاور هوشمند...")
         self._run_in_thread(self._get_ai_response, self.chat_history, on_finish_slot=self._on_ai_complete)
+
+    def _cache_results(self, original_path, content):
+        """Saves the analysis results to a JSON cache file."""
+        cache_path = self._get_cache_path(original_path)
+        try:
+            source_mod_time = os.path.getmtime(original_path)
+            cache_data = {
+                "content": content,
+                "cache_creation_time": datetime.now().isoformat(),
+                "source_mod_time": source_mod_time,
+            }
+            with open(cache_path, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=4)
+            print(f"نتایج تحلیل در فایل کش ذخیره شد: {cache_path}")
+        except (IOError, FileNotFoundError) as e:
+            print(f"خطا در ذخیره فایل کش: {e}")
 
     def _send_user_reply(self):
         """Handles sending the user's typed reply to the AI."""
