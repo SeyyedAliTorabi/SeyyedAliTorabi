@@ -1,14 +1,16 @@
 # =================================================================================
-# Smart Teacher: Course Evaluation App
+# Smart Advisor: Learning Path Recommendation App
 #
 # To run this application, you need to install the following libraries:
-# pip install PyQt6 requests beautifulsoup4 together markdown
+# pip install PyQt6 requests beautifulsoup4 together markdown Pygments
 # =================================================================================
 
 import sys
 import os
 import json
+import csv
 import re
+import time
 from datetime import datetime
 import requests
 import markdown
@@ -17,9 +19,10 @@ from together import Together
 from bs4 import BeautifulSoup
 
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-                             QLineEdit, QPushButton, QTextEdit, QLabel, QMessageBox, QFileDialog)
+                             QLineEdit, QPushButton, QTextEdit, QLabel, QMessageBox, QFileDialog, QMenuBar,
+                             QProgressBar)
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QAction
 
 # --- Constants and Configuration ---
 
@@ -63,7 +66,8 @@ class Worker(QObject):
     """
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
-    status_update = pyqtSignal(str)
+    # Signal now emits percentage (int) and a status message (str)
+    status_update = pyqtSignal(int, str)
 
     def __init__(self, fn, *args, **kwargs):
         super().__init__()
@@ -93,6 +97,7 @@ class SmartTeacherApp(QWidget):
         self.chat_history = []
         self.course_file_path = "" # To store the path of the selected file
         self._init_ui()
+        self._init_menu() # Initialize the menu bar
         self._connect_signals()
         self.reset_chat()
 
@@ -131,31 +136,118 @@ class SmartTeacherApp(QWidget):
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_bar.hide()
+
         # --- User Input Section ---
         self.user_input = QLineEdit()
         self.user_input.setPlaceholderText("پاسخ خود را اینجا تایپ کنید...")
         self.send_button = QPushButton("ارسال پاسخ")
+        self.export_button = QPushButton("ذخیره گفتگو")
         self.send_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.export_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.export_button.hide() # Hidden by default
 
         user_input_layout.addWidget(self.user_input)
         user_input_layout.addWidget(self.send_button)
+        user_input_layout.addWidget(self.export_button)
 
         # Add widgets to main layout
+        self.menu_bar = QMenuBar(self)
+        main_layout.setMenuBar(self.menu_bar)
         main_layout.addLayout(file_layout)
         main_layout.addWidget(self.chat_display)
         main_layout.addWidget(self.status_label)
+        main_layout.addWidget(self.progress_bar)
         main_layout.addLayout(user_input_layout)
 
         self._apply_stylesheet()
 
     def _apply_stylesheet(self):
-        """Applies the dark theme stylesheet."""
-        self.setStyleSheet("""
-            QWidget {
+        """Applies the dark theme stylesheet, including syntax highlighting styles."""
+        # CSS for 'monokai' theme from Pygments for code highlighting
+        pygments_css = """
+        .codehilite .hll { background-color: #49483e }
+        .codehilite .c { color: #75715e } /* Comment */
+        .codehilite .err { color: #960050; background-color: #1e0010 } /* Error */
+        .codehilite .k { color: #66d9ef } /* Keyword */
+        .codehilite .l { color: #ae81ff } /* Literal */
+        .codehilite .n { color: #f8f8f2 } /* Name */
+        .codehilite .o { color: #f92672 } /* Operator */
+        .codehilite .p { color: #f8f8f2 } /* Punctuation */
+        .codehilite .ch { color: #75715e } /* Comment.Hashbang */
+        .codehilite .cm { color: #75715e } /* Comment.Multiline */
+        .codehilite .cp { color: #75715e } /* Comment.Preproc */
+        .codehilite .cpf { color: #75715e } /* Comment.PreprocFile */
+        .codehilite .c1 { color: #75715e } /* Comment.Single */
+        .codehilite .cs { color: #75715e } /* Comment.Special */
+        .codehilite .gd { color: #f92672 } /* Generic.Deleted */
+        .codehilite .ge { font-style: italic } /* Generic.Emph */
+        .codehilite .gi { color: #a6e22e } /* Generic.Inserted */
+        .codehilite .gs { font-weight: bold } /* Generic.Strong */
+        .codehilite .gu { color: #75715e } /* Generic.Subheading */
+        .codehilite .kc { color: #66d9ef } /* Keyword.Constant */
+        .codehilite .kd { color: #66d9ef } /* Keyword.Declaration */
+        .codehilite .kn { color: #f92672 } /* Keyword.Namespace */
+        .codehilite .kp { color: #66d9ef } /* Keyword.Pseudo */
+        .codehilite .kr { color: #66d9ef } /* Keyword.Reserved */
+        .codehilite .kt { color: #66d9ef } /* Keyword.Type */
+        .codehilite .ld { color: #e6db74 } /* Literal.Date */
+        .codehilite .m { color: #ae81ff } /* Literal.Number */
+        .codehilite .s { color: #e6db74 } /* Literal.String */
+        .codehilite .na { color: #a6e22e } /* Name.Attribute */
+        .codehilite .nb { color: #f8f8f2 } /* Name.Builtin */
+        .codehilite .nc { color: #a6e22e } /* Name.Class */
+        .codehilite .no { color: #66d9ef } /* Name.Constant */
+        .codehilite .nd { color: #a6e22e } /* Name.Decorator */
+        .codehilite .ni { color: #f8f8f2 } /* Name.Entity */
+        .codehilite .ne { color: #a6e22e } /* Name.Exception */
+        .codehilite .nf { color: #a6e22e } /* Name.Function */
+        .codehilite .nl { color: #f8f8f2 } /* Name.Label */
+        .codehilite .nn { color: #f8f8f2 } /* Name.Namespace */
+        .codehilite .nx { color: #a6e22e } /* Name.Other */
+        .codehilite .py { color: #f8f8f2 } /* Name.Property */
+        .codehilite .nt { color: #f92672 } /* Name.Tag */
+        .codehilite .nv { color: #f8f8f2 } /* Name.Variable */
+        .codehilite .ow { color: #f92672 } /* Operator.Word */
+        .codehilite .w { color: #f8f8f2 } /* Text.Whitespace */
+        .codehilite .mb { color: #ae81ff } /* Literal.Number.Bin */
+        .codehilite .mf { color: #ae81ff } /* Literal.Number.Float */
+        .codehilite .mh { color: #ae81ff } /* Literal.Number.Hex */
+        .codehilite .mi { color: #ae81ff } /* Literal.Number.Integer */
+        .codehilite .mo { color: #ae81ff } /* Literal.Number.Oct */
+        .codehilite .sa { color: #e6db74 } /* Literal.String.Affix */
+        .codehilite .sb { color: #e6db74 } /* Literal.String.Backtick */
+        .codehilite .sc { color: #e6db74 } /* Literal.String.Char */
+        .codehilite .dl { color: #e6db74 } /* Literal.String.Delimiter */
+        .codehilite .sd { color: #e6db74 } /* Literal.String.Doc */
+        .codehilite .s2 { color: #e6db74 } /* Literal.String.Double */
+        .codehilite .se { color: #ae81ff } /* Literal.String.Escape */
+        .codehilite .sh { color: #e6db74 } /* Literal.String.Heredoc */
+        .codehilite .si { color: #e6db74 } /* Literal.String.Interpol */
+        .codehilite .sx { color: #e6db74 } /* Literal.String.Other */
+        .codehilite .sr { color: #e6db74 } /* Literal.String.Regex */
+        .codehilite .s1 { color: #e6db74 } /* Literal.String.Single */
+        .codehilite .ss { color: #e6db74 } /* Literal.String.Symbol */
+        .codehilite .bp { color: #f8f8f2 } /* Name.Builtin.Pseudo */
+        .codehilite .fm { color: #a6e22e } /* Name.Function.Magic */
+        .codehilite .vc { color: #f8f8f2 } /* Name.Variable.Class */
+        .codehilite .vg { color: #f8f8f2 } /* Name.Variable.Global */
+        .codehilite .vi { color: #f8f8f2 } /* Name.Variable.Instance */
+        .codehilite .vm { color: #f8f8f2 } /* Name.Variable.Magic */
+        .codehilite .il { color: #ae81ff } /* Literal.Number.Integer.Long */
+        .codehilite { background: #272822 !important; color: #f8f8f2 !important; padding: 10px; border-radius: 5px; }
+        div.codehilite { margin: 10px 0; }
+        """
+
+        self.setStyleSheet(f"""
+            QWidget {{
                 background-color: #1A1A1A;
                 color: #F0F0F0;
                 font-family: Arial;
-            }
+            }}
+            {pygments_css}
             QLineEdit {
                 background-color: #101010;
                 border: 1px solid #444;
@@ -201,6 +293,7 @@ class SmartTeacherApp(QWidget):
         self.select_file_button.clicked.connect(self._select_course_file)
         self.start_button.clicked.connect(self._start_evaluation)
         self.send_button.clicked.connect(self._send_user_reply)
+        self.export_button.clicked.connect(self._export_chat)
         self.user_input.returnPressed.connect(self._send_user_reply)
 
     def _set_ui_loading(self, is_loading, message=""):
@@ -225,8 +318,10 @@ class SmartTeacherApp(QWidget):
         Appends a message to the chat display, styling it as a chat bubble
         and rendering its content from Markdown to HTML.
         """
-        # Convert markdown to html
-        html_content = markdown.markdown(text, extensions=['fenced_code', 'tables'])
+        # Convert markdown to html, with syntax highlighting
+        html_content = markdown.markdown(
+            text, extensions=['fenced_code', 'tables', 'codehilite']
+        )
 
         # Determine alignment and bubble color based on role
         if role == 'user':
@@ -260,7 +355,8 @@ class SmartTeacherApp(QWidget):
 
     def _select_course_file(self):
         """Opens a file dialog to select a text file containing course URLs."""
-        file_path, _ = QFileDialog.getOpenFileName(self, "انتخاب فایل دوره‌ها", "", "Text Files (*.txt);;All Files (*)")
+        filters = "Supported Files (*.txt *.csv *.md);;Text Files (*.txt);;CSV Files (*.csv);;Markdown Files (*.md);;All Files (*)"
+        file_path, _ = QFileDialog.getOpenFileName(self, "انتخاب فایل دوره‌ها", "", filters)
         if file_path:
             self.course_file_path = file_path
             self.file_path_display.setText(file_path)
@@ -307,7 +403,10 @@ class SmartTeacherApp(QWidget):
         # --- Proceed with full analysis if cache is not used ---
         self.reset_chat()
         self._append_message("user", f"شروع تحلیل دوره‌ها از فایل: *{self.course_file_path.split('/')[-1]}*")
-        self._set_ui_loading(True, "در حال خواندن فایل دوره‌ها...")
+        self.status_label.setText("در حال آماده‌سازی برای تحلیل...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.show()
+        self._set_ui_loading(True)
         self._run_in_thread(self._process_courses_from_file, self.course_file_path, on_finish_slot=self._on_processing_complete)
 
     def _process_courses_from_file(self, worker, file_path):
@@ -316,8 +415,23 @@ class SmartTeacherApp(QWidget):
         This method is designed to be run in a worker thread.
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                urls = [line.strip() for line in f if line.strip().startswith(('http://', 'https://'))]
+            urls = []
+            if file_path.endswith('.txt'):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    urls = [line.strip() for line in f if line.strip().startswith(('http://', 'https://'))]
+            elif file_path.endswith('.csv'):
+                with open(file_path, 'r', encoding='utf-8', newline='') as f:
+                    reader = csv.reader(f)
+                    for row in reader:
+                        for cell in row:
+                            if cell.strip().startswith(('http://', 'https://')):
+                                urls.append(cell.strip())
+            elif file_path.endswith('.md'):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # A simple regex to find URLs in markdown links or plain text
+                    urls = re.findall(r'https?://[^\s()<>]+', content)
+
         except FileNotFoundError:
             raise FileNotFoundError(f"فایل مورد نظر یافت نشد: {file_path}")
         except Exception as e:
@@ -329,8 +443,9 @@ class SmartTeacherApp(QWidget):
         total_urls = len(urls)
         aggregated_results = []
         for i, url in enumerate(urls):
+            progress_percent = int(((i + 1) / total_urls) * 100)
             progress_message = f"در حال پردازش دوره {i + 1} از {total_urls}: {url[:70]}..."
-            worker.status_update.emit(progress_message)
+            worker.status_update.emit(progress_percent, progress_message)
             try:
                 title, content = self._scrape_course_content(url)
                 result_block = (
@@ -344,12 +459,16 @@ class SmartTeacherApp(QWidget):
             except Exception as e:
                 error_message = f"خطا در پردازش لینک {url}: {e}"
                 print(error_message) # Log error to console
-                worker.status_update.emit(f"خطا در پردازش دوره {i+1}. از این لینک صرف‌نظر شد.")
+                # Emit progress but with an error message
+                worker.status_update.emit(progress_percent, f"خطا در پردازش دوره {i+1}. از این لینک صرف‌نظر شد.")
 
         return "\n\n".join(aggregated_results)
 
     def _on_processing_complete(self, aggregated_content):
         """Callback for when all courses have been scraped and processed."""
+        self.progress_bar.hide()
+        self.status_label.setText("")
+
         if not aggregated_content:
             self._on_task_error("هیچ محتوای قابل استفاده‌ای از فایل دوره‌ها استخراج نشد. لطفاً فایل و لینک‌های درون آن را بررسی کنید.")
             return
@@ -405,6 +524,24 @@ class SmartTeacherApp(QWidget):
         self.send_button.setEnabled(True)
         self.user_input.setFocus()
 
+        # Heuristic to detect final recommendation and show the export button
+        if "1." in cleaned_response and "2." in cleaned_response or "مسیر یادگیری" in cleaned_response:
+            self.export_button.show()
+
+    def _export_chat(self):
+        """Saves the current chat content to a text file."""
+        file_path, _ = QFileDialog.getSaveFileName(self, "ذخیره گفتگو", "", "Text Files (*.txt);;All Files (*)")
+
+        if file_path:
+            try:
+                # Use toPlainText() to get the pure text content from the chat display
+                chat_content = self.chat_display.toPlainText()
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(chat_content)
+                QMessageBox.information(self, "موفقیت", f"گفتگو با موفقیت در فایل زیر ذخیره شد:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "خطا", f"خطا در ذخیره فایل: {e}")
+
     def _on_task_error(self, error_message):
         """Callback for handling errors from the worker thread."""
         self._append_message("system", f"<b style='color:#FF4040;'>خطا: {error_message}</b>")
@@ -454,24 +591,74 @@ class SmartTeacherApp(QWidget):
         except requests.RequestException as e:
             raise ConnectionError(f"خطا در دسترسی به لینک: {e}")
 
+    def _init_menu(self):
+        """Initializes the main menu bar."""
+        tools_menu = self.menu_bar.addMenu("ابزارها")
+
+        clear_cache_action = QAction("پاک کردن تمام فایل‌های کش", self)
+        clear_cache_action.triggered.connect(self._clear_all_cache)
+        tools_menu.addAction(clear_cache_action)
+
+    def _clear_all_cache(self):
+        """Finds and deletes all .cache.json files in the current directory."""
+        current_dir = os.getcwd()
+        cache_files = [f for f in os.listdir(current_dir) if f.endswith(".cache.json")]
+
+        if not cache_files:
+            QMessageBox.information(self, "انجام شد", "هیچ فایل کشی برای پاک کردن پیدا نشد.")
+            return
+
+        reply = QMessageBox.warning(self, "تاییدیه",
+                                      f"شما در حال پاک کردن {len(cache_files)} فایل کش هستید. این کار غیرقابل بازگشت است.\n\nآیا ادامه می‌دهید؟",
+                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                      QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            deleted_count = 0
+            errors = []
+            for f in cache_files:
+                try:
+                    os.remove(os.path.join(current_dir, f))
+                    deleted_count += 1
+                except OSError as e:
+                    errors.append(f)
+                    print(f"خطا در پاک کردن فایل {f}: {e}")
+
+            if not errors:
+                QMessageBox.information(self, "موفقیت", f"تعداد {deleted_count} فایل کش با موفقیت پاک شد.")
+            else:
+                QMessageBox.critical(self, "خطا", f"تعداد {deleted_count} فایل پاک شد، اما در پاک کردن فایل‌های زیر خطا رخ داد:\n" + "\n".join(errors))
+
     def _get_ai_response(self, worker, history):
         """
-        Calls the LLM API and returns the response.
+        Calls the LLM API and returns the response, with an auto-retry mechanism.
         The 'worker' argument is unused but required to match the calling signature from the thread runner.
         """
-        try:
-            client = Together(api_key=API_KEY)
-            response = client.chat.completions.create(
-                model="deepseek-ai/DeepSeek-V3",
-                messages=history,
-                max_tokens=1024,
-                temperature=0.7,
-                top_p=0.9,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            # Catch potential API errors from the 'together' library
-            raise ConnectionError(f"خطا در ارتباط با هوش مصنوعی: {e}")
+        retries = 3
+        last_exception = None
+        for attempt in range(retries):
+            try:
+                client = Together(api_key=API_KEY)
+                response = client.chat.completions.create(
+                    model="deepseek-ai/DeepSeek-V3",
+                    messages=history,
+                    max_tokens=1024,
+                    temperature=0.7,
+                    top_p=0.9,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                last_exception = e
+                # Check for common transient errors, like 503
+                if "503" in str(e) or "overloaded" in str(e).lower():
+                    print(f"خطای سرویس (تلاش {attempt + 1}/{retries}): {e}. تلاش مجدد در ۳ ثانیه...")
+                    time.sleep(3)
+                else:
+                    # For other errors, don't retry, just raise
+                    raise ConnectionError(f"خطا در ارتباط با هوش مصنوعی: {e}")
+
+        # If all retries fail, raise the last captured exception
+        raise ConnectionError(f"خطا در ارتباط با هوش مصنوعی پس از {retries} بار تلاش: {last_exception}")
 
     def _clean_ai_response(self, text):
         """
@@ -507,7 +694,7 @@ class SmartTeacherApp(QWidget):
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(on_finish_slot)
         self.worker.error.connect(self._on_task_error)
-        self.worker.status_update.connect(self._update_status_label) # Connect status updates
+        self.worker.status_update.connect(self._update_progress) # Connect status updates
 
         # Clean up thread and worker after they're done
         self.worker.finished.connect(self.thread.quit)
@@ -518,8 +705,9 @@ class SmartTeacherApp(QWidget):
 
         self.thread.start()
 
-    def _update_status_label(self, message):
-        """Slot to update the status label from the worker thread."""
+    def _update_progress(self, percent, message):
+        """Slot to update the progress bar and status label from the worker thread."""
+        self.progress_bar.setValue(percent)
         self.status_label.setText(message)
 
     def closeEvent(self, event):
