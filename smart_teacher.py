@@ -399,8 +399,11 @@ class SmartTeacherApp(QWidget):
         except requests.RequestException as e:
             raise ConnectionError(f"خطا در دسترسی به لینک: {e}")
 
-    def _get_ai_response(self, history):
-        """Calls the LLM API and returns the response."""
+    def _get_ai_response(self, worker, history):
+        """
+        Calls the LLM API and returns the response.
+        The 'worker' argument is unused but required to match the calling signature from the thread runner.
+        """
         try:
             client = Together(api_key=API_KEY)
             response = client.chat.completions.create(
