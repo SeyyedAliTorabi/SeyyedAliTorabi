@@ -1,0 +1,480 @@
+# =================================================================================
+# Smart Teacher: Course Evaluation App
+#
+# To run this application, you need to install the following libraries:
+# pip install PyQt6 requests beautifulsoup4 together markdown
+# =================================================================================
+
+import sys
+import re
+import requests
+import markdown
+import together
+from together import Together
+from bs4 import BeautifulSoup
+
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+                             QLineEdit, QPushButton, QTextEdit, QLabel, QMessageBox, QFileDialog)
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
+from PyQt6.QtGui import QFont
+
+# --- Constants and Configuration ---
+
+# API Key for the LLM service.
+# IMPORTANT: This key is hardcoded as requested by the user.
+API_KEY = "acaf876f035ff654d7994a13412ff847e0185166b2ed942e1b902bf437dfb1fe"
+
+# The system prompt that defines the AI's role and rules.
+SYSTEM_PROMPT = """
+تو یک مشاور آموزشی و شغلی متخصص در حوزه هوش مصنوعی هستی. وظیفه تو این است که بر اساس لیستی از دوره‌های آموزشی که در اختیار داری، یک مسیر یادگیری شخصی‌سازی شده برای کاربر طراحی کنی.
+
+**تو به لیستی از دوره‌ها و محتوای آن‌ها دسترسی داری. هرگز این لیست یا محتوای خام آن را به کاربر نشان نده.**
+
+**قوانین بسیار مهم مکالمه و خروجی تو:**
+*   **خروجی مطلقاً فقط مکالمه:** پاسخ‌های تو باید **فقط و فقط** شامل گفتگوی مستقیم با کاربر باشد. هیچ‌گونه فکر داخلی، تحلیل‌های شخصی از ورودی، جزئیات پردازش (مثل "لیست دوره‌ها دریافت شد")، یا داده‌های خامی مثل URL یا محتوای استخراج شده از دوره‌ها را در پاسخ‌هایت قرار نده.
+*   **همیشه به زبان فارسی روان، حرفه‌ای و بدون اشتباه صحبت کن.**
+*   **از مارک‌داون (مانند **bold** یا *italics* یا لیست‌های شماره‌گذاری شده) برای خوانایی بیشتر پاسخ‌هایت استفاده کن.**
+*   **مکالمه عمیق و گام به گام برای شناخت کاربر:**
+    *   **شروع مکالمه:** گفتگو را با پرسیدن **تنها یک سوال کلیدی و عمیق** برای درک هدف اصلی کاربر از یادگیری شروع کن. از کلیشه‌ها پرهیز کن.
+    *   **ادامه مکالمه:**
+        *   هدف تو این است که با پرسیدن **حداقل ۲ تا ۴ سوال هوشمندانه و مرتبط**، به درک کاملی از موارد زیر برسی:
+            1.  **سطح دانش فعلی کاربر** (مبتدی، متوسط، پیشرفته).
+            2.  **اهداف شغلی یا شخصی** (مثلاً تغییر شغل، ارتقای مهارت، انجام یک پروژه خاص).
+            3.  **میزان زمان آزاد** و تعهدی که کاربر می‌تواند برای یادگیری بگذارد.
+        *   هر بار فقط یک سوال بپرس. **عجله نکن!** تا زمانی که تصویر کاملی از نیازهای کاربر به دست نیاورده‌ای، توصیه نهایی را ارائه نده.
+*   **توصیه نهایی (مسیر یادگیری):**
+    *   توصیه نهایی تو باید یک **مسیر یادگیری مشخص و اولویت‌بندی شده** باشد.
+    *   برای هر دوره پیشنهادی، به وضوح **دلیل انتخابت** را توضیح بده و آن را به پاسخ‌هایی که کاربر در طول مکالمه داده است، مرتبط کن. (مثلاً: "چون گفتی به مباحث عملی علاقه داری، این دوره که پروژه محور است برایت عالی است.")
+    *   برای هر دوره، یک **تخمین زمانی واقع‌بینانه** برای به اتمام رساندن آن ارائه بده. (مثلاً: "حدود ۴ تا ۶ هفته، با مطالعه روزی ۲ ساعت").
+    *   پیشنهاداتت را به صورت یک مسیر منطقی ارائه بده. (مثلاً: "بهتر است با دوره X برای مبانی شروع کنی، سپس به سراغ دوره Y برای یادگیری عمیق‌تر بروی.")
+
+*   **مثال سوال خوب:** "خیلی هم عالی! برای اینکه بتونم دقیق‌ترین مسیر رو برات طراحی کنم، بهم بگو در حال حاضر با کدام یک از مفاهیم هوش مصنوعی (مثلاً یادگیری ماشین، شبکه‌های عصبی) آشنایی داری و در چه سطحی؟"
+*   **مثال خروجی ممنوع:** "Okay, I have the course list. Now I will ask the user about their goals. My first question is: What do you want to learn?"
+"""
+
+# --- Worker for Threading ---
+
+class Worker(QObject):
+    """
+    A generic worker that runs a function in a separate thread to prevent the GUI from freezing.
+    """
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+    status_update = pyqtSignal(str)
+
+    def __init__(self, fn, *args, **kwargs):
+        super().__init__()
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+
+    def run(self):
+        try:
+            # Pass the worker instance itself as the first argument to the function
+            # so that the function can emit signals from the worker.
+            result = self.fn(self, *self.args, **self.kwargs)
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(f"خطایی رخ داد: {e}")
+
+# --- Main Application Window ---
+
+class SmartTeacherApp(QWidget):
+    """
+    The main application window containing the GUI and the core logic.
+    """
+    def __init__(self):
+        super().__init__()
+        self.thread = None
+        self.worker = None
+        self.chat_history = []
+        self.course_file_path = "" # To store the path of the selected file
+        self._init_ui()
+        self._connect_signals()
+        self.reset_chat()
+
+    def _init_ui(self):
+        """Initializes the user interface."""
+        self.setWindowTitle("مشاور هوشمند: پیشنهاد مسیر یادگیری")
+        self.setGeometry(100, 100, 700, 800)
+
+        # Layouts
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
+
+        file_layout = QHBoxLayout()
+        user_input_layout = QHBoxLayout()
+
+        # --- File Input Section ---
+        self.file_path_display = QLineEdit()
+        self.file_path_display.setPlaceholderText("فایل متنی حاوی لینک دوره‌ها را انتخاب کنید...")
+        self.file_path_display.setReadOnly(True)
+        self.select_file_button = QPushButton("انتخاب فایل")
+        self.start_button = QPushButton("شروع تحلیل")
+        self.select_file_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.start_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        file_layout.addWidget(self.file_path_display)
+        file_layout.addWidget(self.select_file_button)
+        file_layout.addWidget(self.start_button)
+
+        # --- Conversation Display ---
+        self.chat_display = QTextEdit()
+        self.chat_display.setReadOnly(True)
+        # self.chat_display.setFont(QFont("Arial", 14)) # Font is now set in stylesheet
+
+        # --- Status Label ---
+        self.status_label = QLabel("")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # --- User Input Section ---
+        self.user_input = QLineEdit()
+        self.user_input.setPlaceholderText("پاسخ خود را اینجا تایپ کنید...")
+        self.send_button = QPushButton("ارسال پاسخ")
+        self.send_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        user_input_layout.addWidget(self.user_input)
+        user_input_layout.addWidget(self.send_button)
+
+        # Add widgets to main layout
+        main_layout.addLayout(file_layout)
+        main_layout.addWidget(self.chat_display)
+        main_layout.addWidget(self.status_label)
+        main_layout.addLayout(user_input_layout)
+
+        self._apply_stylesheet()
+
+    def _apply_stylesheet(self):
+        """Applies the dark theme stylesheet."""
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1A1A1A;
+                color: #F0F0F0;
+                font-family: Arial;
+            }
+            QLineEdit {
+                background-color: #101010;
+                border: 1px solid #444;
+                padding: 10px;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QTextEdit {
+                background-color: #151515;
+                border: 1px solid #444;
+                padding: 10px;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton {
+                background-color: #2D2D2D;
+                color: #F0F0F0;
+                border: 1px solid #555;
+                padding: 10px 15px;
+                border-radius: 5px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3D3D3D;
+                border: 1px solid #666;
+            }
+            QPushButton:pressed {
+                background-color: #252525;
+            }
+            QPushButton:disabled {
+                background-color: #202020;
+                color: #555;
+            }
+            QLabel {
+                font-size: 14px;
+            }
+        """)
+        self.status_label.setStyleSheet("color: #AAA;")
+
+    def _connect_signals(self):
+        """Connects widget signals to appropriate slots."""
+        self.select_file_button.clicked.connect(self._select_course_file)
+        self.start_button.clicked.connect(self._start_evaluation)
+        self.send_button.clicked.connect(self._send_user_reply)
+        self.user_input.returnPressed.connect(self._send_user_reply)
+
+    def _set_ui_loading(self, is_loading, message=""):
+        """Enables or disables UI elements during long operations."""
+        self.select_file_button.setEnabled(not is_loading)
+        self.start_button.setEnabled(not is_loading)
+        self.user_input.setEnabled(not is_loading)
+        self.send_button.setEnabled(not is_loading)
+        self.status_label.setText(message)
+        QApplication.processEvents() # Force UI update
+
+    def reset_chat(self):
+        """Resets the chat history and UI to its initial state."""
+        self.chat_history = [{'role': 'system', 'content': SYSTEM_PROMPT}]
+        self.chat_display.clear()
+        self.user_input.clear()
+        self.user_input.setEnabled(False)
+        self.send_button.setEnabled(False)
+
+    def _append_message(self, role, text):
+        """
+        Appends a message to the chat display, styling it as a chat bubble
+        and rendering its content from Markdown to HTML.
+        """
+        # Convert markdown to html
+        html_content = markdown.markdown(text, extensions=['fenced_code', 'tables'])
+
+        # Determine alignment and bubble color based on role
+        if role == 'user':
+            # User messages on the right
+            align = "right"
+            bubble_style = "background-color: #2b5278; color: #f0f0f0; border-top-right-radius: 0;"
+            sender_html = "" # No sender name for user
+        elif role == 'ai':
+            # AI messages on the left
+            align = "left"
+            bubble_style = "background-color: #363636; color: #f0f0f0; border-top-left-radius: 0;"
+            sender_html = "<b style='color:#60A0FF;'>مشاور هوشمند</b><br>"
+        else: # System or Error messages
+            align = "center"
+            bubble_style = "background-color: transparent; color: #999; font-size: 12px;"
+            sender_html = ""
+
+        # Create the bubble
+        bubble_html = f"""
+        <div align='{align}'>
+            <div style='display: inline-block; max-width: 80%; text-align: left; padding: 12px; margin-bottom: 8px; border-radius: 15px; {bubble_style}'>
+                {sender_html}{html_content}
+            </div>
+        </div>
+        """
+        self.chat_display.append(bubble_html)
+        self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
+
+
+    # --- Core Logic Methods ---
+
+    def _select_course_file(self):
+        """Opens a file dialog to select a text file containing course URLs."""
+        file_path, _ = QFileDialog.getOpenFileName(self, "انتخاب فایل دوره‌ها", "", "Text Files (*.txt);;All Files (*)")
+        if file_path:
+            self.course_file_path = file_path
+            self.file_path_display.setText(file_path)
+
+    def _start_evaluation(self):
+        """Handles the 'Start Analysis' button click."""
+        if not self.course_file_path:
+            QMessageBox.warning(self, "فایل انتخاب نشده", "لطفاً ابتدا یک فایل متنی حاوی لینک‌ها را انتخاب کنید.")
+            return
+
+        self.reset_chat()
+        self._append_message("user", f"شروع تحلیل دوره‌ها از فایل: *{self.course_file_path.split('/')[-1]}*")
+        self._set_ui_loading(True, "در حال خواندن فایل دوره‌ها...")
+
+        self._run_in_thread(self._process_courses_from_file, self.course_file_path, on_finish_slot=self._on_processing_complete)
+
+    def _process_courses_from_file(self, worker, file_path):
+        """
+        Reads a file with URLs, scrapes each one, and returns the aggregated content.
+        This method is designed to be run in a worker thread.
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                urls = [line.strip() for line in f if line.strip().startswith(('http://', 'https://'))]
+        except FileNotFoundError:
+            raise FileNotFoundError(f"فایل مورد نظر یافت نشد: {file_path}")
+        except Exception as e:
+            raise IOError(f"خطا در خواندن فایل: {e}")
+
+        if not urls:
+            return "" # Return empty if no valid URLs found
+
+        total_urls = len(urls)
+        aggregated_results = []
+        for i, url in enumerate(urls):
+            progress_message = f"در حال پردازش دوره {i + 1} از {total_urls}: {url[:70]}..."
+            worker.status_update.emit(progress_message)
+            try:
+                title, content = self._scrape_course_content(url)
+                result_block = (
+                    f"### Course {i + 1} ###\n"
+                    f"**URL:** {url}\n"
+                    f"**Title:** {title}\n\n"
+                    f"**Content Summary:**\n{content}\n\n"
+                    f"----------------------------------------"
+                )
+                aggregated_results.append(result_block)
+            except Exception as e:
+                error_message = f"خطا در پردازش لینک {url}: {e}"
+                print(error_message) # Log error to console
+                worker.status_update.emit(f"خطا در پردازش دوره {i+1}. از این لینک صرف‌نظر شد.")
+
+        return "\n\n".join(aggregated_results)
+
+    def _on_processing_complete(self, aggregated_content):
+        """Callback for when all courses have been scraped and processed."""
+        if not aggregated_content:
+            self._on_task_error("هیچ محتوای قابل استفاده‌ای از فایل دوره‌ها استخراج نشد. لطفاً فایل و لینک‌های درون آن را بررسی کنید.")
+            return
+
+        self._append_message("system", "<b>تحلیل تمام دوره‌ها به پایان رسید. گفتگو با مشاور هوشمند آغاز می‌شود...</b>")
+
+        # Prepare the first message for the AI
+        initial_user_message = f"محتوای دوره‌های زیر برای تحلیل در اختیار توست:\n\n{aggregated_content}"
+        self.chat_history.append({'role': 'user', 'content': initial_user_message})
+
+        self._set_ui_loading(True, "در حال دریافت پاسخ از مشاور هوشمند...")
+        self._run_in_thread(self._get_ai_response, self.chat_history, on_finish_slot=self._on_ai_complete)
+
+    def _send_user_reply(self):
+        """Handles sending the user's typed reply to the AI."""
+        reply = self.user_input.text().strip()
+        if not reply:
+            return
+
+        self._append_message("user", reply)
+        self.user_input.clear()
+        self.chat_history.append({'role': 'user', 'content': reply})
+
+        self._set_ui_loading(True, "در حال دریافت پاسخ از استاد هوشمند...")
+        self._run_in_thread(self._get_ai_response, self.chat_history, on_finish_slot=self._on_ai_complete)
+
+    def _on_ai_complete(self, ai_response):
+        """Callback for when the AI API call is finished."""
+        cleaned_response = self._clean_ai_response(ai_response)
+        self.chat_history.append({'role': 'assistant', 'content': cleaned_response})
+        self._append_message("ai", cleaned_response)
+        self._set_ui_loading(False)
+        self.user_input.setEnabled(True)
+        self.send_button.setEnabled(True)
+        self.user_input.setFocus()
+
+    def _on_task_error(self, error_message):
+        """Callback for handling errors from the worker thread."""
+        self._append_message("system", f"<b style='color:#FF4040;'>خطا: {error_message}</b>")
+        self._set_ui_loading(False)
+        self.user_input.setEnabled(False)
+        self.send_button.setEnabled(False)
+
+    # --- Helper Functions (executed in worker thread) ---
+
+    def _scrape_course_content(self, url):
+        """Fetches and extracts text content from a URL."""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=20)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            for element in soup(["script", "style", "nav", "footer", "header"]):
+                element.decompose()
+
+            title = soup.title.string.strip() if soup.title else "بدون عنوان"
+
+            # Prioritize semantic tags for content extraction
+            content_selectors = ['article', 'main', '.content', '#content', '.post-content']
+            content_text = ""
+            for selector in content_selectors:
+                element = soup.select_one(selector)
+                if element:
+                    content_text = element.get_text(separator=' ', strip=True)
+                    break
+
+            if not content_text:
+                 content_text = soup.body.get_text(separator=' ', strip=True)
+
+            cleaned_text = re.sub(r'\s+', ' ', content_text).strip()
+            # Limit content size to avoid excessive API usage
+            max_len = 15000
+            if len(cleaned_text) > max_len:
+                cleaned_text = cleaned_text[:max_len] + "..."
+
+            if not cleaned_text:
+                raise ValueError("محتوای متنی قابل استخراجی در صفحه یافت نشد.")
+
+            return title, cleaned_text
+        except requests.RequestException as e:
+            raise ConnectionError(f"خطا در دسترسی به لینک: {e}")
+
+    def _get_ai_response(self, history):
+        """Calls the LLM API and returns the response."""
+        try:
+            client = Together(api_key=API_KEY)
+            response = client.chat.completions.create(
+                model="deepseek-ai/DeepSeek-V3",
+                messages=history,
+                max_tokens=1024,
+                temperature=0.7,
+                top_p=0.9,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            # Catch potential API errors from the 'together' library
+            raise ConnectionError(f"خطا در ارتباط با هوش مصنوعی: {e}")
+
+    def _clean_ai_response(self, text):
+        """
+        Cleans the AI's raw response to remove meta-commentary, thoughts,
+        and other non-conversational artifacts.
+        """
+        # Remove any potential XML-like tags for thinking
+        text = re.sub(r'<.*?>', '', text, flags=re.DOTALL)
+        # Remove text within brackets or parentheses which often contain metadata
+        text = re.sub(r'\[.*?\]', '', text)
+        text = re.sub(r'\(.*?\)', '', text)
+
+        # Remove common conversational filler and meta-commentary in English/Persian
+        starters_to_remove = [
+            r'here is my response:', r'here is the question:', r'my question is:',
+            r'sure, i can help with that.', r'of course.', r'certainly.',
+            r'based on the provided content,', r'after analyzing the text,',
+            r'سوال من این است:', r'سوال من:', r'بسیار خب،', r'حتما.', r'البته.',
+            r'بر اساس محتوای ارائه شده،', r'پس از تحلیل متن،',
+            r'با توجه به اطلاعات دوره،'
+        ]
+        for starter in starters_to_remove:
+            text = re.sub(f'^{starter}', '', text.strip(), flags=re.IGNORECASE | re.UNICODE)
+
+        return text.strip()
+
+    def _run_in_thread(self, fn, *args, on_finish_slot):
+        """Utility to create and run a worker thread."""
+        self.thread = QThread()
+        self.worker = Worker(fn, *args)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(on_finish_slot)
+        self.worker.error.connect(self._on_task_error)
+        self.worker.status_update.connect(self._update_status_label) # Connect status updates
+
+        # Clean up thread and worker after they're done
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.error.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.error.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+
+        self.thread.start()
+
+    def _update_status_label(self, message):
+        """Slot to update the status label from the worker thread."""
+        self.status_label.setText(message)
+
+    def closeEvent(self, event):
+        """Ensure thread is properly terminated on window close."""
+        if self.thread and self.thread.isRunning():
+            self.thread.quit()
+            self.thread.wait() # Wait for the thread to finish
+        event.accept()
+
+# --- Application Entry Point ---
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = SmartTeacherApp()
+    window.show()
+    sys.exit(app.exec())
