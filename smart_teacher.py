@@ -241,13 +241,12 @@ class SmartTeacherApp(QWidget):
         div.codehilite { margin: 10px 0; }
         """
 
-        self.setStyleSheet(f"""
-            QWidget {{
+        main_stylesheet = """
+            QWidget {
                 background-color: #1A1A1A;
                 color: #F0F0F0;
                 font-family: Arial;
-            }}
-            {pygments_css}
+            }
             QLineEdit {
                 background-color: #101010;
                 border: 1px solid #444;
@@ -285,7 +284,10 @@ class SmartTeacherApp(QWidget):
             QLabel {
                 font-size: 14px;
             }
-        """)
+        """
+
+        # Combine stylesheets using simple concatenation to avoid f-string parsing issues
+        self.setStyleSheet(pygments_css + main_stylesheet)
         self.status_label.setStyleSheet("color: #AAA;")
 
     def _connect_signals(self):
