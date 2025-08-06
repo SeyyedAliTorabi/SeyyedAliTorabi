@@ -1,0 +1,8 @@
+PyQt5
+pandas
+numpy
+scikit-learn
+xgboost
+prophet
+statsmodels
+matplotlib
