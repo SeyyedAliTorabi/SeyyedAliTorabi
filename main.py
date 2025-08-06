@@ -2,117 +2,6 @@ import sys
 import pandas as pd
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget,
                              QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog,
-                             QTableView, QMessageBox, QHeaderView)
-from PyQt5.QtCore import QAbstractTableModel, Qt, QSortFilterProxyModel
-from PyQt5.QtGui import QFont
-
-# --- Backend Imports ---
-from data_processor import load_and_validate
-
-# --- Pandas Model for QTableView ---
-class PandasModel(QAbstractTableModel):
-    def __init__(self, data):
-        super().__init__()
-        self._data = data
-
-    def rowCount(self, parent=None):
-        return self._data.shape[0]
-
-    def columnCount(self, parent=None):
-        return self._data.shape[1]
-
-    def data(self, index, role=Qt.DisplayRole):
-        if index.isValid() and role == Qt.DisplayRole:
-            return str(self._data.iloc[index.row(), index.column()])
-        return None
-
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole:
-            if orientation == Qt.Horizontal:
-                return str(self._data.columns[section])
-            if orientation == Qt.Vertical:
-                return str(self._data.index[section])
-        return None
-
-# --- Page Classes ---
-
-class DataLoadingPage(QWidget):
-    def __init__(self, main_window):
-        super().__init__()
-        self.main_window = main_window
-        self.df = None
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-
-        # Title
-        title_label = QLabel("مرحله ۱: بارگذاری مجموعه داده")
-        title_label.setFont(QFont('Segoe UI', 20, QFont.Bold))
-        title_label.setAlignment(Qt.AlignCenter)
-
-        # File Selection Button
-        self.select_file_button = QPushButton("انتخاب فایل CSV")
-        self.select_file_button.clicked.connect(self.open_file_dialog)
-
-        # Filename Label
-        self.filename_label = QLabel("فایلی انتخاب نشده است.")
-        self.filename_label.setAlignment(Qt.AlignCenter)
-        self.filename_label.setStyleSheet("color: #AAA;")
-
-        # Table View for Data Preview
-        self.table_view = QTableView()
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-
-        # Continue Button
-        self.continue_button = QPushButton("ادامه و پیش‌پردازش")
-        self.continue_button.setEnabled(False)
-        self.continue_button.clicked.connect(self.proceed)
-
-        # Add widgets to layout
-        layout.addWidget(title_label)
-        layout.addWidget(self.select_file_button)
-        layout.addWidget(self.filename_label)
-        layout.addWidget(self.table_view)
-        layout.addWidget(self.continue_button)
-
-        self.setLayout(layout)
-
-    def open_file_dialog(self):
-        options = QFileDialog.Options()
-        filepath, _ = QFileDialog.getOpenFileName(self, "انتخاب فایل CSV", "", "CSV Files (*.csv);;All Files (*)", options=options)
-        if filepath:
-            try:
-                self.df = load_and_validate(filepath)
-                self.filename_label.setText(f"فایل بارگذاری شده: {filepath}")
-
-                # Store the full dataframe in the main_window
-                self.main_window.dataframe = self.df
-
-                # Create a model for the table view (first 50 rows)
-                preview_df = self.df.head(50)
-                model = PandasModel(preview_df)
-                self.table_view.setModel(model)
-
-                self.continue_button.setEnabled(True)
-
-            except Exception as e:
-                QMessageBox.critical(self, "خطا در بارگذاری فایل", str(e))
-                self.filename_label.setText("خطا در بارگذاری فایل.")
-                self.main_window.dataframe = None
-                self.table_view.setModel(None)
-                self.continue_button.setEnabled(False)
-
-    def proceed(self):
-        # This function will be called when the continue button is clicked
-        # It will eventually pass the dataframe to the next page
-        self.main_window.go_to_config_page()
-
-
-import sys
-import pandas as pd
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget,
-                             QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog,
                              QTableView, QMessageBox, QHeaderView, QGroupBox, QFormLayout,
                              QComboBox, QSpinBox, QDoubleSpinBox, QRadioButton, QProgressDialog)
 from PyQt5.QtCore import QAbstractTableModel, Qt, QSortFilterProxyModel, QObject, QThread, pyqtSignal
@@ -200,21 +89,21 @@ class DataLoadingPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
 
-        title_label = QLabel("مرحله ۱: بارگذاری مجموعه داده")
+        title_label = QLabel("Step 1: Load Dataset")
         title_label.setFont(QFont('Segoe UI', 20, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
 
-        self.select_file_button = QPushButton("انتخاب فایل CSV")
+        self.select_file_button = QPushButton("Select CSV or Excel File")
         self.select_file_button.clicked.connect(self.open_file_dialog)
 
-        self.filename_label = QLabel("فایلی انتخاب نشده است.")
+        self.filename_label = QLabel("No file selected.")
         self.filename_label.setAlignment(Qt.AlignCenter)
         self.filename_label.setStyleSheet("color: #AAA;")
 
         self.table_view = QTableView()
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
-        self.continue_button = QPushButton("ادامه و پیش‌پردازش")
+        self.continue_button = QPushButton("Continue to Preprocessing")
         self.continue_button.setEnabled(False)
         self.continue_button.clicked.connect(self.proceed)
 
@@ -228,11 +117,12 @@ class DataLoadingPage(QWidget):
 
     def open_file_dialog(self):
         options = QFileDialog.Options()
-        filepath, _ = QFileDialog.getOpenFileName(self, "انتخاب فایل CSV", "", "CSV Files (*.csv);;All Files (*)", options=options)
+        file_filter = "Data Files (*.csv *.xls *.xlsx);;CSV Files (*.csv);;Excel Files (*.xls *.xlsx);;All Files (*)"
+        filepath, _ = QFileDialog.getOpenFileName(self, "Select CSV or Excel File", "", file_filter, options=options)
         if filepath:
             try:
                 self.df = load_and_validate(filepath)
-                self.filename_label.setText(f"فایل بارگذاری شده: {filepath}")
+                self.filename_label.setText(f"Loaded file: {filepath}")
 
                 self.main_window.dataframe = self.df
                 self.main_window.preprocessed_dataframe = None # Reset preprocessed data
@@ -244,8 +134,8 @@ class DataLoadingPage(QWidget):
                 self.continue_button.setEnabled(True)
 
             except Exception as e:
-                QMessageBox.critical(self, "خطا در بارگذاری فایل", str(e))
-                self.filename_label.setText("خطا در بارگذاری فایل.")
+                QMessageBox.critical(self, "Error Loading File", str(e))
+                self.filename_label.setText("Error loading file.")
                 self.main_window.dataframe = None
                 self.table_view.setModel(None)
                 self.continue_button.setEnabled(False)
@@ -264,7 +154,7 @@ class ConfigPage(QWidget):
         main_layout.setSpacing(15)
 
         back_button_layout = QHBoxLayout()
-        self.back_button = QPushButton("بازگشت به بارگذاری داده")
+        self.back_button = QPushButton("Back to Data Loading")
         self.back_button.clicked.connect(self.main_window.go_to_data_loading_page)
         self.back_button.setFixedWidth(200)
         back_button_layout.addWidget(self.back_button)
@@ -283,22 +173,22 @@ class ConfigPage(QWidget):
         main_layout.addStretch()
 
     def _create_preprocessing_group(self):
-        group_box = QGroupBox("مرحله ۲: آماده‌سازی داده")
+        group_box = QGroupBox("Step 2: Prepare Data")
         group_box.setFont(QFont('Segoe UI', 14, QFont.Bold))
         layout = QFormLayout(group_box)
 
         self.timestamp_combo = QComboBox()
         self.value_combo = QComboBox()
 
-        self.preprocess_button = QPushButton("اجرای پیش‌پردازش")
+        self.preprocess_button = QPushButton("Run Preprocessing")
         self.preprocess_button.clicked.connect(self.run_preprocessing)
-        self.preprocess_status_label = QLabel("هنوز اجرا نشده است.")
+        self.preprocess_status_label = QLabel("Not executed yet.")
         self.preprocess_status_label.setStyleSheet("color: #AAA;")
 
-        layout.addRow(QLabel("ستون زمان (Timestamp):"), self.timestamp_combo)
-        layout.addRow(QLabel("ستون مقدار (Value):"), self.value_combo)
+        layout.addRow(QLabel("Timestamp Column:"), self.timestamp_combo)
+        layout.addRow(QLabel("Value Column:"), self.value_combo)
         layout.addRow(self.preprocess_button)
-        layout.addRow(QLabel("وضعیت:"), self.preprocess_status_label)
+        layout.addRow(QLabel("Status:"), self.preprocess_status_label)
 
         return group_box
 
@@ -307,10 +197,10 @@ class ConfigPage(QWidget):
         value_col = self.value_combo.currentText()
 
         if not timestamp_col or not value_col:
-            QMessageBox.warning(self, "خطا", "لطفاً ستون زمان و مقدار را انتخاب کنید.")
+            QMessageBox.warning(self, "Error", "Please select the timestamp and value columns.")
             return
         if timestamp_col == value_col:
-            QMessageBox.warning(self, "خطا", "ستون زمان و مقدار نمی‌توانند یکسان باشند.")
+            QMessageBox.warning(self, "Error", "Timestamp and value columns cannot be the same.")
             return
 
         try:
@@ -321,20 +211,20 @@ class ConfigPage(QWidget):
             self.preprocess_status_label.setStyleSheet("color: #00AEEF;")
             self.train_button.setEnabled(True)
         except Exception as e:
-            QMessageBox.critical(self, "خطا در پیش‌پردازش", str(e))
-            self.preprocess_status_label.setText("پیش‌پردازش ناموفق بود.")
+            QMessageBox.critical(self, "Preprocessing Error", str(e))
+            self.preprocess_status_label.setText("Preprocessing failed.")
             self.preprocess_status_label.setStyleSheet("color: red;")
             self.train_button.setEnabled(False)
 
     def _create_model_selection_group(self):
-        group_box = QGroupBox("مرحله ۳: انتخاب مدل و تنظیمات")
+        group_box = QGroupBox("Step 3: Select Model & Settings")
         group_box.setFont(QFont('Segoe UI', 14, QFont.Bold))
         layout = QVBoxLayout(group_box)
 
         form_layout = QFormLayout()
         self.model_combo = QComboBox()
         self.model_combo.addItems(["XGBoost", "Prophet", "ARIMA"])
-        form_layout.addRow(QLabel("مدل را انتخاب کنید:"), self.model_combo)
+        form_layout.addRow(QLabel("Select Model:"), self.model_combo)
 
         layout.addLayout(form_layout)
 
@@ -379,9 +269,9 @@ class ConfigPage(QWidget):
         self.xgb_learning_rate.setSingleStep(0.01)
         self.xgb_learning_rate.setValue(0.1)
 
-        layout.addRow(self._create_param_widget("n_estimators:", "تعداد درختان تصمیم در مدل.", self.xgb_estimators))
-        layout.addRow(self._create_param_widget("max_depth:", "حداکثر عمق هر درخت.", self.xgb_max_depth))
-        layout.addRow(self._create_param_widget("learning_rate:", "نرخ یادگیری.", self.xgb_learning_rate))
+        layout.addRow(self._create_param_widget("n_estimators:", "Number of decision trees in the model.", self.xgb_estimators))
+        layout.addRow(self._create_param_widget("max_depth:", "Maximum depth of each tree.", self.xgb_max_depth))
+        layout.addRow(self._create_param_widget("learning_rate:", "Step size shrinkage.", self.xgb_learning_rate))
         return widget
 
     def _create_prophet_params(self):
@@ -394,8 +284,8 @@ class ConfigPage(QWidget):
         self.prophet_seasonality = QComboBox()
         self.prophet_seasonality.addItems(["additive", "multiplicative"])
 
-        layout.addRow(self._create_param_widget("changepoint_prior_scale:", "میزان انعطاف‌پذیری مدل در نقاط تغییر روند.", self.prophet_changepoint))
-        layout.addRow(self._create_param_widget("seasonality_mode:", "نوع فصلی بودن (افزایشی یا ضربی).", self.prophet_seasonality))
+        layout.addRow(self._create_param_widget("changepoint_prior_scale:", "Flexibility of the model in changepoints.", self.prophet_changepoint))
+        layout.addRow(self._create_param_widget("seasonality_mode:", "Type of seasonality (additive or multiplicative).", self.prophet_seasonality))
         return widget
 
     def _create_arima_params(self):
@@ -411,18 +301,18 @@ class ConfigPage(QWidget):
         self.arima_q.setRange(1, 10)
         self.arima_q.setValue(0)
 
-        layout.addRow(self._create_param_widget("p (Order of AR):", "مرتبه بخش خودهمبستگی.", self.arima_p))
-        layout.addRow(self._create_param_widget("d (Degree of differencing):", "مرتبه تفاضل‌گیری.", self.arima_d))
-        layout.addRow(self._create_param_widget("q (Order of MA):", "مرتبه بخش میانگین متحرک.", self.arima_q))
+        layout.addRow(self._create_param_widget("p (Order of AR):", "Order of the autoregressive part.", self.arima_p))
+        layout.addRow(self._create_param_widget("d (Degree of differencing):", "Degree of differencing.", self.arima_d))
+        layout.addRow(self._create_param_widget("q (Order of MA):", "Order of the moving average part.", self.arima_q))
         return widget
 
     def _create_forecast_settings_group(self):
-        group_box = QGroupBox("مرحله ۴: تنظیمات خروجی")
+        group_box = QGroupBox("Step 4: Output Settings")
         group_box.setFont(QFont('Segoe UI', 14, QFont.Bold))
         layout = QVBoxLayout(group_box)
 
-        self.horizon_24 = QRadioButton("۲۴ ساعت آینده")
-        self.horizon_48 = QRadioButton("۴۸ ساعت آینده")
+        self.horizon_24 = QRadioButton("Next 24 Hours")
+        self.horizon_48 = QRadioButton("Next 48 Hours")
         self.horizon_24.setChecked(True)
 
         horizon_layout = QHBoxLayout()
@@ -430,7 +320,7 @@ class ConfigPage(QWidget):
         horizon_layout.addWidget(self.horizon_48)
         horizon_layout.addStretch()
 
-        self.train_button = QPushButton("شروع آموزش و پیش‌بینی")
+        self.train_button = QPushButton("Start Training & Forecasting")
         self.train_button.setFont(QFont('Segoe UI', 12, QFont.Bold))
         self.train_button.setStyleSheet("padding: 15px;")
         self.train_button.setEnabled(False) # Disabled until preprocessing is done
@@ -487,7 +377,7 @@ class ConfigPage(QWidget):
 
             # Reset status if new data is loaded
             if self.main_window.preprocessed_dataframe is None:
-                self.preprocess_status_label.setText("هنوز اجرا نشده است.")
+                self.preprocess_status_label.setText("Not executed yet.")
                 self.preprocess_status_label.setStyleSheet("color: #AAA;")
                 self.train_button.setEnabled(False)
 
@@ -502,7 +392,7 @@ class ResultsPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(10)
 
-        title_label = QLabel("نتایج پیش‌بینی")
+        title_label = QLabel("Forecast Results")
         title_label.setFont(QFont('Segoe UI', 20, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
 
@@ -510,7 +400,7 @@ class ResultsPage(QWidget):
         self.main_plot_canvas = MplCanvas(self, width=10, height=5, dpi=100)
 
         # Metrics
-        metrics_group = QGroupBox("معیارهای ارزیابی")
+        metrics_group = QGroupBox("Evaluation Metrics")
         metrics_group.setFont(QFont('Segoe UI', 14, QFont.Bold))
         metrics_layout = QHBoxLayout(metrics_group)
         self.mape_label = QLabel("MAPE: -")
@@ -528,10 +418,10 @@ class ResultsPage(QWidget):
 
         # Buttons
         buttons_layout = QHBoxLayout()
-        self.save_button = QPushButton("ذخیره پیش‌بینی (CSV)")
+        self.save_button = QPushButton("Save Forecast (CSV)")
         self.save_button.setEnabled(False)
         self.save_button.clicked.connect(self.save_forecast)
-        self.home_button = QPushButton("بازگشت به شروع")
+        self.home_button = QPushButton("Back to Start")
         self.home_button.clicked.connect(self.main_window.go_to_data_loading_page)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.save_button)
@@ -553,31 +443,31 @@ class ResultsPage(QWidget):
 
         # Update main plot
         self.main_plot_canvas.axes.clear()
-        self.main_plot_canvas.axes.plot(self.results['historical_data'].index, self.results['historical_data'], color='gray', alpha=0.8, label='داده‌های تاریخی')
-        self.main_plot_canvas.axes.plot(self.results['test_predictions'].index, self.results['test_predictions'], color='#00AEEF', linewidth=2, label='پیش‌بینی روی داده تست')
+        self.main_plot_canvas.axes.plot(self.results['historical_data'].index, self.results['historical_data'], color='gray', alpha=0.8, label='Historical Data')
+        self.main_plot_canvas.axes.plot(self.results['test_predictions'].index, self.results['test_predictions'], color='#00AEEF', linewidth=2, label='Test Predictions')
         self.main_plot_canvas.axes.legend(labelcolor='#F0F0F0')
-        self.main_plot_canvas.axes.set_title("مقایسه داده‌های تاریخی و پیش‌بینی تست", color='#F0F0F0')
+        self.main_plot_canvas.axes.set_title("Historical Data vs. Test Predictions", color='#F0F0F0')
         self.main_plot_canvas.fig.tight_layout()
         self.main_plot_canvas.draw()
 
         # Update future plot
         self.future_plot_canvas.axes.clear()
-        self.future_plot_canvas.axes.plot(self.results['future_forecast'].index, self.results['future_forecast'], color='#50C878', linestyle='--', marker='o', label='پیش‌بینی آینده')
+        self.future_plot_canvas.axes.plot(self.results['future_forecast'].index, self.results['future_forecast'], color='#50C878', linestyle='--', marker='o', label='Future Forecast')
         self.future_plot_canvas.axes.legend(labelcolor='#F0F0F0')
-        self.future_plot_canvas.axes.set_title("پیش‌بینی آینده", color='#F0F0F0')
+        self.future_plot_canvas.axes.set_title("Future Forecast", color='#F0F0F0')
         self.future_plot_canvas.fig.tight_layout()
         self.future_plot_canvas.draw()
 
     def save_forecast(self):
         if self.results and self.results['future_forecast'] is not None:
             options = QFileDialog.Options()
-            filepath, _ = QFileDialog.getSaveFileName(self, "ذخیره پیش‌بینی", "", "CSV Files (*.csv);;All Files (*)", options=options)
+            filepath, _ = QFileDialog.getSaveFileName(self, "Save Forecast", "", "CSV Files (*.csv);;All Files (*)", options=options)
             if filepath:
                 try:
                     self.results['future_forecast'].to_csv(filepath)
-                    QMessageBox.information(self, "موفقیت", f"پیش‌بینی با موفقیت در فایل زیر ذخیره شد:\n{filepath}")
+                    QMessageBox.information(self, "Success", f"Forecast saved successfully to:\n{filepath}")
                 except Exception as e:
-                    QMessageBox.critical(self, "خطا در ذخیره‌سازی", str(e))
+                    QMessageBox.critical(self, "Error Saving File", str(e))
 
 # --- Main Window ---
 
@@ -615,12 +505,12 @@ class MainWindow(QMainWindow):
 
     def start_training_process(self):
         if self.preprocessed_dataframe is None:
-            QMessageBox.warning(self, "خطا", "لطفا ابتدا داده‌ها را پیش‌پردازش کنید.")
+            QMessageBox.warning(self, "Error", "Please run preprocessing first.")
             return
 
         config_params = self.config_page.get_all_parameters()
 
-        self.progress_dialog = QProgressDialog("در حال آموزش مدل و پیش‌بینی...", "لغو", 0, 0, self)
+        self.progress_dialog = QProgressDialog("Training model and forecasting...", "Cancel", 0, 0, self)
         self.progress_dialog.setCancelButton(None)
         self.progress_dialog.setModal(True)
         self.progress_dialog.show()
@@ -648,7 +538,7 @@ class MainWindow(QMainWindow):
 
     def on_training_error(self, error_message):
         self.progress_dialog.close()
-        QMessageBox.critical(self, "خطا در آموزش", error_message)
+        QMessageBox.critical(self, "Training Error", error_message)
         self.thread.quit()
         self.thread.wait()
 
@@ -659,7 +549,7 @@ class MainWindow(QMainWindow):
         if self.dataframe is not None:
             self.stacked_widget.setCurrentWidget(self.config_page)
         else:
-            QMessageBox.warning(self, "No Data", "Please load a dataset before proceeding.")
+            QMessageBox.warning(self, "No Data Loaded", "Please load a dataset before proceeding.")
 
     def go_to_results_page(self):
         self.stacked_widget.setCurrentWidget(self.results_page)

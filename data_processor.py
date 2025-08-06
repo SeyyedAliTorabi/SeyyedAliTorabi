@@ -2,24 +2,29 @@ import pandas as pd
 
 def load_and_validate(filepath):
     """
-    Loads a CSV file and performs initial validation.
+    Loads a CSV or Excel file and performs initial validation.
 
     Args:
-        filepath (str): The path to the CSV file.
+        filepath (str): The path to the data file.
 
     Returns:
         pd.DataFrame: The loaded data as a pandas DataFrame.
     """
-    if not filepath or not filepath.endswith('.csv'):
-        raise ValueError("Invalid file path or file is not a CSV.")
+    if not filepath:
+        raise ValueError("No file path provided.")
 
-    df = pd.read_csv(filepath)
+    if filepath.endswith('.csv'):
+        df = pd.read_csv(filepath)
+    elif filepath.endswith(('.xls', '.xlsx')):
+        df = pd.read_excel(filepath)
+    else:
+        raise ValueError("Invalid file format. Please select a CSV or Excel file.")
 
     if df.empty:
-        raise ValueError("The CSV file is empty.")
+        raise ValueError("The selected file is empty.")
 
     if len(df.columns) < 2:
-        raise ValueError("The CSV file must have at least two columns (for timestamp and value).")
+        raise ValueError("The data must have at least two columns (for timestamp and value).")
 
     return df
 
@@ -65,7 +70,7 @@ def preprocess(df, timestamp_col, value_col):
 
     dropped_count = nans_after_interp
 
-    report = (f"{interpolated_count} مقدار NaN با میان‌یابی خطی پر شد. "
-              f"{dropped_count} مقدار NaN (در شکاف‌های بزرگ) حذف شد.")
+    report = (f"Filled {interpolated_count} NaN values using linear interpolation. "
+              f"Removed {dropped_count} NaN values (in large gaps or at ends).")
 
     return processed_df, report
