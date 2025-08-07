@@ -102,15 +102,23 @@ class DataLoadingPage(QWidget):
 
         # Preview options
         preview_options_layout = QHBoxLayout()
-        preview_label = QLabel("Rows to preview:")
-        self.preview_rows_spinbox = QSpinBox()
-        self.preview_rows_spinbox.setRange(10, 500)
-        self.preview_rows_spinbox.setValue(50)
-        self.preview_rows_spinbox.setSingleStep(10)
-        self.preview_rows_spinbox.valueChanged.connect(self.update_table_preview)
+        start_label = QLabel("Start Index:")
+        self.start_index_spinbox = QSpinBox()
+        self.start_index_spinbox.setRange(0, 0) # Will be updated on file load
+
+        end_label = QLabel("End Index:")
+        self.end_index_spinbox = QSpinBox()
+        self.end_index_spinbox.setRange(0, 0) # Will be updated on file load
+
+        self.start_index_spinbox.valueChanged.connect(self.update_table_preview)
+        self.end_index_spinbox.valueChanged.connect(self.update_table_preview)
+
         preview_options_layout.addStretch()
-        preview_options_layout.addWidget(preview_label)
-        preview_options_layout.addWidget(self.preview_rows_spinbox)
+        preview_options_layout.addWidget(start_label)
+        preview_options_layout.addWidget(self.start_index_spinbox)
+        preview_options_layout.addSpacing(20)
+        preview_options_layout.addWidget(end_label)
+        preview_options_layout.addWidget(self.end_index_spinbox)
         preview_options_layout.addStretch()
 
         self.table_view = QTableView()
@@ -141,6 +149,12 @@ class DataLoadingPage(QWidget):
                 self.main_window.dataframe = self.df
                 self.main_window.preprocessed_dataframe = None # Reset preprocessed data
 
+                # Set dynamic range for spin boxes
+                num_rows = len(self.df)
+                self.start_index_spinbox.setRange(0, num_rows)
+                self.end_index_spinbox.setRange(0, num_rows)
+                self.end_index_spinbox.setValue(min(50, num_rows))
+
                 # Update table view using the new method
                 self.update_table_preview()
 
@@ -157,11 +171,22 @@ class DataLoadingPage(QWidget):
         self.main_window.go_to_config_page()
 
     def update_table_preview(self):
-        """Updates the table view if a dataframe is loaded."""
+        """Updates the table view using the start/end index if a dataframe is loaded."""
         if self.df is not None:
             try:
-                num_rows = self.preview_rows_spinbox.value()
-                preview_df = self.df.head(num_rows)
+                start_index = self.start_index_spinbox.value()
+                end_index = self.end_index_spinbox.value()
+
+                # Basic validation to prevent errors
+                if start_index >= end_index:
+                    # Silently adjust or skip update to avoid invalid slice
+                    end_index = start_index + 1
+
+                # Ensure end_index is not out of bounds
+                if end_index > len(self.df):
+                    end_index = len(self.df)
+
+                preview_df = self.df.iloc[start_index:end_index]
                 model = PandasModel(preview_df)
                 self.table_view.setModel(model)
             except Exception as e:
