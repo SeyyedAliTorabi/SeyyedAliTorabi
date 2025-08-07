@@ -100,6 +100,19 @@ class DataLoadingPage(QWidget):
         self.filename_label.setAlignment(Qt.AlignCenter)
         self.filename_label.setStyleSheet("color: #AAA;")
 
+        # Preview options
+        preview_options_layout = QHBoxLayout()
+        preview_label = QLabel("Rows to preview:")
+        self.preview_rows_spinbox = QSpinBox()
+        self.preview_rows_spinbox.setRange(10, 500)
+        self.preview_rows_spinbox.setValue(50)
+        self.preview_rows_spinbox.setSingleStep(10)
+        self.preview_rows_spinbox.valueChanged.connect(self.update_table_preview)
+        preview_options_layout.addStretch()
+        preview_options_layout.addWidget(preview_label)
+        preview_options_layout.addWidget(self.preview_rows_spinbox)
+        preview_options_layout.addStretch()
+
         self.table_view = QTableView()
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
@@ -110,6 +123,7 @@ class DataLoadingPage(QWidget):
         layout.addWidget(title_label)
         layout.addWidget(self.select_file_button)
         layout.addWidget(self.filename_label)
+        layout.addLayout(preview_options_layout)
         layout.addWidget(self.table_view)
         layout.addWidget(self.continue_button)
 
@@ -127,9 +141,8 @@ class DataLoadingPage(QWidget):
                 self.main_window.dataframe = self.df
                 self.main_window.preprocessed_dataframe = None # Reset preprocessed data
 
-                preview_df = self.df.head(50)
-                model = PandasModel(preview_df)
-                self.table_view.setModel(model)
+                # Update table view using the new method
+                self.update_table_preview()
 
                 self.continue_button.setEnabled(True)
 
@@ -142,6 +155,17 @@ class DataLoadingPage(QWidget):
 
     def proceed(self):
         self.main_window.go_to_config_page()
+
+    def update_table_preview(self):
+        """Updates the table view if a dataframe is loaded."""
+        if self.df is not None:
+            try:
+                num_rows = self.preview_rows_spinbox.value()
+                preview_df = self.df.head(num_rows)
+                model = PandasModel(preview_df)
+                self.table_view.setModel(model)
+            except Exception as e:
+                QMessageBox.critical(self, "Error Updating Preview", str(e))
 
 
 class ConfigPage(QWidget):
