@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt, QTimer
 
 import numpy as np
 from OpenGL.GL import *
-from PyQt6.QtGui import QMatrix4x4, QVector3D
+from PyQt6.QtGui import QMatrix4x4, QVector3D, QOpenGLShader
 from PyQt6.QtOpenGL import QOpenGLBuffer, QOpenGLVertexArrayObject, QOpenGLShaderProgram
 
 class GalacticGLWidget(QOpenGLWidget):
@@ -115,8 +115,8 @@ class GalacticGLWidget(QOpenGLWidget):
         in vec3 vertex_color; out vec4 FragColor;
         void main() { FragColor = vec4(vertex_color, 1.0); }"""
         self.gradient_shader = QOpenGLShaderProgram()
-        self.gradient_shader.addShaderFromSourceCode(QOpenGLShaderProgram.ShaderTypeBit.Vertex, vertex_shader)
-        self.gradient_shader.addShaderFromSourceCode(QOpenGLShaderProgram.ShaderTypeBit.Fragment, fragment_shader_gradient)
+        self.gradient_shader.addShaderFromSourceCode(QOpenGLShader.Vertex, vertex_shader)
+        self.gradient_shader.addShaderFromSourceCode(QOpenGLShader.Fragment, fragment_shader_gradient)
         self.gradient_shader.link()
 
         # --- Solid Color Shader (for planets/lamp) ---
@@ -125,8 +125,8 @@ class GalacticGLWidget(QOpenGLWidget):
         uniform vec4 object_color; out vec4 FragColor;
         void main() { FragColor = object_color; }"""
         self.solid_shader = QOpenGLShaderProgram()
-        self.solid_shader.addShaderFromSourceCode(QOpenGLShaderProgram.ShaderTypeBit.Vertex, vertex_shader)
-        self.solid_shader.addShaderFromSourceCode(QOpenGLShaderProgram.ShaderTypeBit.Fragment, fragment_shader_solid)
+        self.solid_shader.addShaderFromSourceCode(QOpenGLShader.Vertex, vertex_shader)
+        self.solid_shader.addShaderFromSourceCode(QOpenGLShader.Fragment, fragment_shader_solid)
         self.solid_shader.link()
 
         # --- Buffer for Spiral ---
