@@ -5,8 +5,8 @@ from PyQt6.QtCore import Qt, QTimer
 
 import numpy as np
 from OpenGL.GL import *
-from PyQt6.QtGui import QOpenGLShaderProgram, QMatrix4x4, QVector3D
-from PyQt6.QtOpenGL import QOpenGLBuffer, QOpenGLVertexArrayObject
+from PyQt6.QtGui import QMatrix4x4, QVector3D
+from PyQt6.QtOpenGL import QOpenGLBuffer, QOpenGLVertexArrayObject, QOpenGLShaderProgram
 
 class GalacticGLWidget(QOpenGLWidget):
     """Custom QOpenGLWidget for 3D visualization."""
