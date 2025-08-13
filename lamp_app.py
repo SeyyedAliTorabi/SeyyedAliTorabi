@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import (
     QPainter, QColor, QBrush, QPen, QFont, QRadialGradient, QPolygonF
 )
-from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal, QSizeF
+from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal, QSizeF, QTimer
 
 # Slogan in Persian
 SLOGAN = "مسیرت روشن، تخصصت بی‌نکران"
@@ -40,6 +40,12 @@ class GalacticWidget(QWidget):
         self.stars = []
         self._generate_stars(300, 1000)
 
+        # For moon animation
+        self.moon_animation_angle = 0
+        self.animation_timer = QTimer(self)
+        self.animation_timer.timeout.connect(self._update_animation)
+        self.animation_timer.start(33)  # ~30 FPS
+
     def _generate_stars(self, num_stars, max_radius):
         """Generates a list of stars with random positions and brightness."""
         for _ in range(num_stars):
@@ -49,6 +55,13 @@ class GalacticWidget(QWidget):
             y = radius * math.sin(angle)
             brightness = random.randint(30, 120)
             self.stars.append((QPointF(x, y), brightness))
+
+    def _update_animation(self):
+        """Updates the animation angle and triggers a repaint."""
+        self.moon_animation_angle += 0.03
+        if self.moon_animation_angle > 2 * math.pi:
+            self.moon_animation_angle -= 2 * math.pi
+        self.update()
 
     def resizeEvent(self, event):
         self._generate_spiral_points()
@@ -67,7 +80,7 @@ class GalacticWidget(QWidget):
         self._draw_galactic_layers(painter)
         self._draw_spiral_path(painter)
         self._draw_planets_and_moons(painter)
-        self._draw_expertise_sun(painter)
+        self._draw_expertise_lamp(painter)
 
     def mouseMoveEvent(self, event):
         painter_pos = event.position() - QPointF(self.width() / 2, self.height() / 2)
@@ -78,6 +91,10 @@ class GalacticWidget(QWidget):
                 break
 
         if found_item:
+            # Pause animation when hovering
+            if self.animation_timer.isActive():
+                self.animation_timer.stop()
+
             if self.hovered_item_id != found_item['id']:
                 self.hovered_item_id = found_item['id']
                 if 'course' in found_item['type']:
@@ -89,6 +106,10 @@ class GalacticWidget(QWidget):
                 QToolTip.showText(self.mapToGlobal(event.position().toPoint()), tooltip_text, self)
                 self.update()
         else:
+            # Resume animation when not hovering
+            if not self.animation_timer.isActive():
+                self.animation_timer.start(33)
+
             if self.hovered_item_id is not None:
                 self.hovered_item_id = None
                 QToolTip.hideText()
@@ -111,23 +132,45 @@ class GalacticWidget(QWidget):
             painter.drawEllipse(pos, 1, 1)
         painter.restore()
 
-    def _draw_expertise_sun(self, painter):
+    def _draw_expertise_lamp(self, painter):
+        """Draws the central 'Expertise Lamp'."""
         painter.save()
-        sun_radius = 60
-        gradient = QRadialGradient(0, 0, sun_radius * 1.5)
-        gradient.setColorAt(0, QColor("#ffd700"))
-        gradient.setColorAt(0.6, QColor("#ff6900"))
+
+        bulb_center_y = -60
+        bulb_radius = 25
+
+        # 1. The Glow
+        glow_radius = bulb_radius * 2.5
+        gradient = QRadialGradient(0, bulb_center_y, glow_radius)
+        gradient.setColorAt(0, QColor(255, 255, 224, 200))
         gradient.setColorAt(1, QColor(13, 17, 23, 0))
         painter.setBrush(QBrush(gradient))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(int(-sun_radius * 1.5), int(-sun_radius * 1.5), int(sun_radius * 3), int(sun_radius * 3))
-        core_radius = 40
-        painter.setBrush(QColor("#ffd700"))
-        painter.drawEllipse(-core_radius, -core_radius, core_radius * 2, core_radius * 2)
-        painter.setPen(QColor("#333333"))
-        font = QFont("Roboto", 12, QFont.Weight.Bold)
+        painter.drawEllipse(QPointF(0, bulb_center_y), glow_radius, glow_radius)
+
+        # 2. The Lamp Base
+        base_width = 80
+        base_height = 15
+        painter.setBrush(QColor("#4F4F4F"))
+        painter.drawRect(int(-base_width/2), 0, base_width, base_height)
+
+        # 3. The Lamp Stand
+        stand_width = 8
+        stand_height = 60
+        painter.setBrush(QColor("#6E6E6E"))
+        painter.drawRect(int(-stand_width/2), -stand_height, stand_width, stand_height)
+
+        # 4. The Bulb
+        painter.setBrush(QColor("#FFFFE0"))
+        painter.drawEllipse(QPointF(0, bulb_center_y), bulb_radius, bulb_radius)
+
+        # 5. Text on the base
+        painter.setPen(QColor("#FFFFFF"))
+        font = QFont("Roboto", 10, QFont.Weight.Bold)
         painter.setFont(font)
-        painter.drawText(QRectF(-core_radius, -core_radius, core_radius * 2, core_radius * 2), Qt.AlignmentFlag.AlignCenter, "Expertise")
+        text_rect = QRectF(-base_width/2, 0, base_width, base_height)
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, "Expertise")
+
         painter.restore()
 
     def _generate_spiral_points(self):
@@ -193,7 +236,7 @@ class GalacticWidget(QWidget):
             painter.restore()
             return
 
-        base_planet_radius, base_moon_radius, moon_orbit_radius = 10, 4, 15
+        base_planet_radius, base_moon_radius, moon_orbit_radius = 14, 6, 22
 
         for course in self.courses:
             point_index = int(course["progress"] * (len(self.spiral_points) - 1))
@@ -212,7 +255,8 @@ class GalacticWidget(QWidget):
             social_id = f"social_{course['id']}"
             is_social_hovered = (social_id == self.hovered_item_id)
             social_radius = base_moon_radius * 1.5 if is_social_hovered else base_moon_radius
-            moon1_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(math.pi/4), planet_pos.y() + moon_orbit_radius * math.sin(math.pi/4))
+            moon1_angle = self.moon_animation_angle
+            moon1_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(moon1_angle), planet_pos.y() + moon_orbit_radius * math.sin(moon1_angle))
             painter.setBrush(QColor("#55efc4"))
             painter.drawEllipse(moon1_pos, social_radius, social_radius)
             social_rect = QRectF(moon1_pos - QPointF(social_radius, social_radius), QSizeF(social_radius*2, social_radius*2))
@@ -221,7 +265,8 @@ class GalacticWidget(QWidget):
             mentor_id = f"mentor_{course['id']}"
             is_mentor_hovered = (mentor_id == self.hovered_item_id)
             mentor_radius = base_moon_radius * 1.5 if is_mentor_hovered else base_moon_radius
-            moon2_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(math.pi*5/4), planet_pos.y() + moon_orbit_radius * math.sin(math.pi*5/4))
+            moon2_angle = self.moon_animation_angle + math.pi
+            moon2_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(moon2_angle), planet_pos.y() + moon_orbit_radius * math.sin(moon2_angle))
             star = QPolygonF()
             for i in range(10):
                 radius = mentor_radius if i % 2 == 0 else mentor_radius / 2.5
