@@ -10,12 +10,11 @@ from PyQt6.QtWidgets import (
     QToolTip
 )
 from PyQt6.QtGui import (
-    QPainter, QColor, QBrush, QPen, QFont, QRadialGradient, QPolygonF
+    QPainter, QColor, QBrush, QPen, QFont, QRadialGradient, QPolygonF, QPainterPath, QLinearGradient
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal, QSizeF, QTimer
-
-# Slogan in Persian
-SLOGAN = "مسیرت روشن، تخصصت بی‌نکران"
+from course_dialog import CourseDialog
+from chat_dialog import ChatDialog
 
 class GalacticWidget(QWidget):
     """Custom widget for drawing the galactic learning path."""
@@ -27,40 +26,114 @@ class GalacticWidget(QWidget):
         self.setMouseTracking(True)
 
         self.courses = [
-            {"id": "course_1", "name": "Intro to Python", "progress": 0.1},
-            {"id": "course_2", "name": "Data Structures", "progress": 0.3},
-            {"id": "course_3", "name": "Algorithms", "progress": 0.5},
-            {"id": "course_4", "name": "Machine Learning", "progress": 0.75},
-            {"id": "course_5", "name": "Advanced AI", "progress": 0.9},
+            {
+                "id": "course_1", "name": "Intro to Python", "progress": 0.1,
+                "completion_status": "not_started", # not_started, in_progress, completed
+                "lessons": [
+                    {"name": "Chapter 1: Basic Syntax", "completed": False},
+                    {"name": "Chapter 2: Data Types", "completed": False},
+                    {"name": "Chapter 3: Control Flow", "completed": False},
+                ]
+            },
+            {
+                "id": "course_2", "name": "Data Structures", "progress": 0.3,
+                "completion_status": "not_started",
+                "lessons": [
+                    {"name": "Topic 1: Arrays & Lists", "completed": False},
+                    {"name": "Topic 2: Stacks & Queues", "completed": False},
+                ]
+            },
+            {
+                "id": "course_3", "name": "Algorithms", "progress": 0.5,
+                "completion_status": "not_started",
+                "lessons": [
+                    {"name": "Part 1: Sorting Algorithms", "completed": False},
+                    {"name": "Part 2: Searching Algorithms", "completed": False},
+                    {"name": "Part 3: Algorithmic Complexity", "completed": False},
+                ]
+            },
+            {
+                "id": "course_4", "name": "Machine Learning", "progress": 0.75,
+                "completion_status": "not_started",
+                "lessons": [
+                    {"name": "Intro to ML", "completed": False},
+                    {"name": "Supervised Learning", "completed": False},
+                    {"name": "Unsupervised Learning", "completed": False},
+                ]
+            },
+            {
+                "id": "course_5", "name": "Advanced AI", "progress": 0.9,
+                "completion_status": "not_started",
+                "lessons": [
+                    {"name": "Neural Networks", "completed": False},
+                    {"name": "Deep Learning", "completed": False},
+                ]
+            },
         ]
+        # Add animation state to each course
+        for course in self.courses:
+            course['moon_angle'] = random.uniform(0, 2 * math.pi)
+            course['is_paused'] = False
+
         self.spiral_points = []
         self.interactive_items = []
         self.hovered_item_id = None
-        self.user_progress = 0.6  # 0.0 to 1.0, example value
+        self.user_progress = 0.6
         self.stars = []
         self._generate_stars(300, 1000)
 
-        # For moon animation
-        self.moon_animation_angle = 0
+        # Global animation timer
+        self.animation_time = 0
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self._update_animation)
-        self.animation_timer.start(33)  # ~30 FPS
+        self.animation_timer.start(33)
+
+        # State for final completion effect
+        self.is_lamp_on = False
+        self.is_final_effect_active = False
+        self.effect_progress = 0.0
+        self.layer_rotation_angle = 0.0
 
     def _generate_stars(self, num_stars, max_radius):
-        """Generates a list of stars with random positions and brightness."""
+        """Generates a list of stars with random positions and twinkle properties."""
         for _ in range(num_stars):
             angle = random.uniform(0, 2 * math.pi)
             radius = random.uniform(0, max_radius)
-            x = radius * math.cos(angle)
-            y = radius * math.sin(angle)
-            brightness = random.randint(30, 120)
-            self.stars.append((QPointF(x, y), brightness))
+            x, y = radius * math.cos(angle), radius * math.sin(angle)
+            self.stars.append({
+                'pos': QPointF(x, y),
+                'base_alpha': random.randint(20, 90),
+                'current_alpha': 0,
+                'speed': random.uniform(0.01, 0.03),
+                'offset': random.uniform(0, 2 * math.pi)
+            })
 
     def _update_animation(self):
-        """Updates the animation angle and triggers a repaint."""
-        self.moon_animation_angle += 0.03
-        if self.moon_animation_angle > 2 * math.pi:
-            self.moon_animation_angle -= 2 * math.pi
+        """Updates animation state for moons and stars."""
+        self.animation_time += 1
+        # Update moon angles
+        for course in self.courses:
+            if not course.get('is_paused', False):
+                course['moon_angle'] += 0.03
+                if course['moon_angle'] > 2 * math.pi:
+                    course['moon_angle'] -= 2 * math.pi
+        # Update star twinkle
+        for star in self.stars:
+            amplitude = star['base_alpha'] / 2
+            pulsation = math.sin(self.animation_time * star['speed'] + star['offset']) * amplitude
+            star['current_alpha'] = star['base_alpha'] + pulsation
+
+        # Update layer rotation
+        self.layer_rotation_angle += 0.001
+
+        # Update final effect animation
+        if self.is_final_effect_active:
+            self.effect_progress += 0.005  # Speed of the effect
+            if self.effect_progress >= 1.0:
+                self.effect_progress = 1.0
+                self.is_final_effect_active = False
+                self.is_lamp_on = True
+
         self.update()
 
     def resizeEvent(self, event):
@@ -81,39 +154,44 @@ class GalacticWidget(QWidget):
         self._draw_spiral_path(painter)
         self._draw_planets_and_moons(painter)
         self._draw_expertise_lamp(painter)
+        self._draw_completion_effect(painter)
 
     def mouseMoveEvent(self, event):
         painter_pos = event.position() - QPointF(self.width() / 2, self.height() / 2)
-        found_item = None
+        new_hovered_id = None
         for item in reversed(self.interactive_items):
             if item['rect'].contains(painter_pos):
-                found_item = item
+                new_hovered_id = item['id']
                 break
 
-        if found_item:
-            # Pause animation when hovering
-            if self.animation_timer.isActive():
-                self.animation_timer.stop()
+        # Determine which planet is being hovered over (directly or via its moons)
+        hovered_planet_id = None
+        if new_hovered_id:
+            if 'course' in new_hovered_id:
+                hovered_planet_id = new_hovered_id
+            else: # It's a moon
+                hovered_planet_id = "_".join(new_hovered_id.split('_')[1:])
 
-            if self.hovered_item_id != found_item['id']:
-                self.hovered_item_id = found_item['id']
-                if 'course' in found_item['type']:
-                    tooltip_text = f"Course: {found_item['name']}"
-                elif 'social' in found_item['type']:
+        # Update the pause state for each course
+        for course in self.courses:
+            course['is_paused'] = (course['id'] == hovered_planet_id)
+
+        # Update visual hover effect for the specific item
+        if self.hovered_item_id != new_hovered_id:
+            self.hovered_item_id = new_hovered_id
+            if new_hovered_id is None:
+                QToolTip.hideText()
+            else:
+                item_type = next((item['type'] for item in self.interactive_items if item['id'] == new_hovered_id), "")
+                if 'course' in item_type:
+                    item_name = next((c['name'] for c in self.courses if c['id'] == new_hovered_id), "")
+                    tooltip_text = f"Course: {item_name}"
+                elif 'social' in item_type:
                     tooltip_text = "Social Group"
                 else:
                     tooltip_text = "Mentoring"
                 QToolTip.showText(self.mapToGlobal(event.position().toPoint()), tooltip_text, self)
-                self.update()
-        else:
-            # Resume animation when not hovering
-            if not self.animation_timer.isActive():
-                self.animation_timer.start(33)
-
-            if self.hovered_item_id is not None:
-                self.hovered_item_id = None
-                QToolTip.hideText()
-                self.update()
+            self.update()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -123,53 +201,134 @@ class GalacticWidget(QWidget):
                     self.itemClicked.emit(item['id'])
                     break
 
+    def _draw_completion_effect(self, painter):
+        """Draws a light pulse traveling along the spiral."""
+        if not self.is_final_effect_active or not self.spiral_points:
+            return
+
+        painter.save()
+
+        progress_index = int((len(self.spiral_points) - 1) * self.effect_progress)
+        pos = self.spiral_points[progress_index]
+
+        radius = 20
+        gradient = QRadialGradient(pos, radius)
+        gradient.setColorAt(0, QColor(255, 255, 255, 255))
+        gradient.setColorAt(0.5, QColor(255, 255, 100, 150))
+        gradient.setColorAt(1, QColor(255, 255, 0, 0))
+        painter.setBrush(gradient)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(pos, radius, radius)
+
+        painter.restore()
+
+    def _check_for_full_completion(self):
+        """Checks if all courses are completed and triggers the final effect."""
+        if self.is_final_effect_active or self.is_lamp_on:
+            return
+
+        all_done = all(course.get('completion_status') == 'completed' for course in self.courses)
+
+        if all_done:
+            print("All courses completed! Starting final effect...")
+            self.is_final_effect_active = True
+            self.effect_progress = 0.0
+
+    def update_course_data(self, updated_data):
+        """Finds the course by ID and updates its data and completion status."""
+        course_id = updated_data.get('id')
+        if not course_id:
+            return
+
+        for i, course in enumerate(self.courses):
+            if course['id'] == course_id:
+                self.courses[i]['lessons'] = updated_data['lessons']
+
+                completed_lessons = sum(1 for lesson in self.courses[i]['lessons'] if lesson['completed'])
+                total_lessons = len(self.courses[i]['lessons'])
+
+                if total_lessons == 0:
+                    status = 'not_started'
+                elif completed_lessons == total_lessons:
+                    status = 'completed'
+                elif completed_lessons > 0:
+                    status = 'in_progress'
+                else:
+                    status = 'not_started'
+
+                self.courses[i]['completion_status'] = status
+                self.update() # Repaint to show visual feedback
+                self._check_for_full_completion()
+                break
+
     def _draw_starfield(self, painter):
-        """Draws the starfield background."""
+        """Draws the twinkling starfield background."""
         painter.save()
         painter.setPen(Qt.PenStyle.NoPen)
-        for pos, brightness in self.stars:
-            painter.setBrush(QColor(255, 255, 255, brightness))
-            painter.drawEllipse(pos, 1, 1)
+        for star in self.stars:
+            painter.setBrush(QColor(255, 255, 255, int(star['current_alpha'])))
+            painter.drawEllipse(star['pos'], 1, 1)
         painter.restore()
 
     def _draw_expertise_lamp(self, painter):
-        """Draws the central 'Expertise Lamp'."""
+        """Draws the central lamp, in either an 'on' or 'off' state."""
         painter.save()
 
-        bulb_center_y = -60
-        bulb_radius = 25
+        base_width = 90
+        base_height = 20
+        base_rect = QRectF(-base_width / 2, 0, base_width, base_height)
+        bulb_center = QPointF(0, -100)
+        bulb_radius = 20
 
-        # 1. The Glow
-        glow_radius = bulb_radius * 2.5
-        gradient = QRadialGradient(0, bulb_center_y, glow_radius)
-        gradient.setColorAt(0, QColor(255, 255, 224, 200))
-        gradient.setColorAt(1, QColor(13, 17, 23, 0))
-        painter.setBrush(QBrush(gradient))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QPointF(0, bulb_center_y), glow_radius, glow_radius)
+        # Draw differently based on the 'on' state
+        if self.is_lamp_on:
+            # --- ON STATE ---
+            # Glow
+            glow_radius = bulb_radius * 3.5
+            gradient = QRadialGradient(bulb_center, glow_radius)
+            gradient.setColorAt(0, QColor(255, 255, 230, 220))
+            gradient.setColorAt(0.7, QColor(255, 220, 100, 100))
+            gradient.setColorAt(1, QColor(13, 17, 23, 0))
+            painter.setBrush(QBrush(gradient))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(bulb_center, glow_radius, glow_radius)
+            # Bulb
+            painter.setBrush(QColor("#FFFFF0"))
+            painter.drawEllipse(bulb_center, bulb_radius, bulb_radius)
+        else:
+            # --- OFF STATE ---
+            painter.setBrush(QColor("#505050"))
+            painter.drawEllipse(bulb_center, bulb_radius, bulb_radius)
 
-        # 2. The Lamp Base
-        base_width = 80
-        base_height = 15
-        painter.setBrush(QColor("#4F4F4F"))
-        painter.drawRect(int(-base_width/2), 0, base_width, base_height)
+        # --- SHARED COMPONENTS (Base, Stand, Text) ---
+        # Base
+        base_gradient = QLinearGradient(base_rect.topLeft(), base_rect.bottomLeft())
+        base_gradient.setColorAt(0, QColor("#888888"))
+        base_gradient.setColorAt(0.5, QColor("#555555"))
+        base_gradient.setColorAt(1, QColor("#444444"))
+        painter.setBrush(base_gradient)
+        painter.setPen(QPen(QColor("#222222"), 1))
+        painter.drawRoundedRect(base_rect, 5, 5)
 
-        # 3. The Lamp Stand
-        stand_width = 8
-        stand_height = 60
-        painter.setBrush(QColor("#6E6E6E"))
-        painter.drawRect(int(-stand_width/2), -stand_height, stand_width, stand_height)
+        # Stand
+        path = QPainterPath()
+        path.moveTo(0, 0)
+        path.quadTo(QPointF(25, -50), QPointF(0, -90))
+        pen = QPen()
+        pen.setWidth(10)
+        stand_gradient = QLinearGradient(0, 0, 0, -90)
+        stand_gradient.setColorAt(0, QColor("#999999"))
+        stand_gradient.setColorAt(1, QColor("#6E6E6E"))
+        pen.setBrush(stand_gradient)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.drawPath(path)
 
-        # 4. The Bulb
-        painter.setBrush(QColor("#FFFFE0"))
-        painter.drawEllipse(QPointF(0, bulb_center_y), bulb_radius, bulb_radius)
-
-        # 5. Text on the base
+        # Text
         painter.setPen(QColor("#FFFFFF"))
         font = QFont("Roboto", 10, QFont.Weight.Bold)
         painter.setFont(font)
-        text_rect = QRectF(-base_width/2, 0, base_width, base_height)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, "Expertise")
+        painter.drawText(base_rect, Qt.AlignmentFlag.AlignCenter, "Expertise")
 
         painter.restore()
 
@@ -248,6 +407,27 @@ class GalacticWidget(QWidget):
             painter.setBrush(QColor("#a29bfe"))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(planet_pos, planet_radius, planet_radius)
+
+            # --- Add visual feedback for completion status ---
+            status = course.get('completion_status', 'not_started')
+            if status == 'in_progress':
+                painter.save()
+                pen = QPen(QColor(255, 255, 0, 150))
+                pulse = (math.sin(self.animation_time * 0.1) + 1) / 2
+                pen.setWidth(int(2 + pulse * 2))
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(planet_pos, planet_radius, planet_radius)
+                painter.restore()
+            elif status == 'completed':
+                painter.save()
+                pen = QPen(QColor(0, 255, 127, 200))
+                pen.setWidth(3)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(planet_pos, planet_radius + 3, planet_radius + 3)
+                painter.restore()
+
             planet_rect = QRectF(planet_pos - QPointF(planet_radius, planet_radius), QSizeF(planet_radius*2, planet_radius*2))
             self.interactive_items.append({"id": course['id'], "name": course['name'], "rect": planet_rect, "type": "course_planet"})
 
@@ -255,17 +435,32 @@ class GalacticWidget(QWidget):
             social_id = f"social_{course['id']}"
             is_social_hovered = (social_id == self.hovered_item_id)
             social_radius = base_moon_radius * 1.5 if is_social_hovered else base_moon_radius
-            moon1_angle = self.moon_animation_angle
+            moon1_angle = course['moon_angle']
             moon1_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(moon1_angle), planet_pos.y() + moon_orbit_radius * math.sin(moon1_angle))
             painter.setBrush(QColor("#55efc4"))
             painter.drawEllipse(moon1_pos, social_radius, social_radius)
+
+            # Draw a simple person icon on the social moon
+            painter.save()
+            icon_pen = QPen(QColor("#006266"))
+            icon_pen.setWidthF(0.8)
+            painter.setPen(icon_pen)
+            # Head
+            head_radius = social_radius * 0.3
+            head_center = QPointF(moon1_pos.x(), moon1_pos.y() - social_radius * 0.25)
+            painter.drawEllipse(head_center, head_radius, head_radius)
+            # Body
+            body_rect = QRectF(head_center.x() - head_radius * 1.5, head_center.y() + head_radius * 0.5, head_radius * 3, head_radius * 2)
+            painter.drawArc(body_rect, -30 * 16, -120 * 16)
+            painter.restore()
+
             social_rect = QRectF(moon1_pos - QPointF(social_radius, social_radius), QSizeF(social_radius*2, social_radius*2))
             self.interactive_items.append({"id": social_id, "rect": social_rect, "type": "moon_social"})
 
             mentor_id = f"mentor_{course['id']}"
             is_mentor_hovered = (mentor_id == self.hovered_item_id)
             mentor_radius = base_moon_radius * 1.5 if is_mentor_hovered else base_moon_radius
-            moon2_angle = self.moon_animation_angle + math.pi
+            moon2_angle = course['moon_angle'] + math.pi
             moon2_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(moon2_angle), planet_pos.y() + moon_orbit_radius * math.sin(moon2_angle))
             star = QPolygonF()
             for i in range(10):
@@ -283,13 +478,23 @@ class GalacticWidget(QWidget):
         pen = QPen(QColor("#4a90e2"))
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setWidth(1)
-        painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
+
         max_radius = min(self.width(), self.height()) / 2 * 0.9
-        for i in range(1, 6):
-            radius = max_radius * (i / 5)
+        num_orbits = 5
+        for i in range(1, num_orbits + 1):
+            painter.save()
+            radius = max_radius * (i / num_orbits)
+            # Rotate each layer at a different speed for a parallax effect
+            rotation_speed_multiplier = (num_orbits - i + 1) * 0.5
+            painter.rotate(math.degrees(self.layer_rotation_angle * rotation_speed_multiplier))
+            painter.setPen(pen)
             painter.drawEllipse(int(-radius), int(-radius), int(radius * 2), int(radius * 2))
+            painter.restore()
+
         painter.restore()
+
+from PyQt6.QtWidgets import QVBoxLayout
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -300,32 +505,53 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 900)
         self.setStyleSheet("background-color: #0d1117; color: white;")
 
+        # Main container widget and layout
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(0)
+
+        # Title Label
+        title_label = QLabel("The Galactic Learning Path")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #E0E0E0; padding-bottom: 10px;")
+        layout.addWidget(title_label)
+
+        # Galactic Widget
         self.galactic_widget = GalacticWidget(self)
-        self.setCentralWidget(self.galactic_widget)
+        layout.addWidget(self.galactic_widget)
+
+        self.setCentralWidget(container)
         self.galactic_widget.itemClicked.connect(self.on_item_clicked)
 
+        # Status Bar (without slogan)
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        slogan_label = QLabel(SLOGAN)
-        slogan_label.setStyleSheet("color: #aaaaaa; padding: 5px;")
-        self.status_bar.addPermanentWidget(slogan_label)
+        self.status_bar.setStyleSheet("background-color: #161b22;")
 
     def on_item_clicked(self, item_id):
         """Handles the click event from the galactic widget."""
-        item_name = "Unknown"
+        item_type = ""
         for item in self.galactic_widget.interactive_items:
             if item['id'] == item_id:
-                if 'course' in item['type']:
-                    item_name = f"Course: {item['name']}"
-                elif 'social' in item['type']:
-                    item_name = "Social Group"
-                else:
-                    item_name = "Mentoring"
+                item_type = item.get('type', "")
                 break
 
-        message = f"Clicked on: {item_name}"
-        self.status_bar.showMessage(message, 3000) # Show for 3 seconds
-        print(message)
+        if 'course' in item_type:
+            course_data = next((c for c in self.galactic_widget.courses if c['id'] == item_id), None)
+            if course_data:
+                dialog = CourseDialog(course_data, self)
+                dialog.courseUpdated.connect(self.galactic_widget.update_course_data)
+                dialog.exec()
+        elif 'social' in item_type:
+            course_id = "_".join(item_id.split('_')[1:])
+            course_name = next((c['name'] for c in self.galactic_widget.courses if c['id'] == course_id), "Unknown Course")
+            dialog = ChatDialog(course_name, self)
+            dialog.exec()
+        else: # Handle mentor moon clicks
+            message = f"Clicked on: Mentoring"
+            self.status_bar.showMessage(message, 3000)
+            print(message)
 
 def main():
     """Main function to run the application."""
