@@ -271,64 +271,45 @@ class GalacticWidget(QWidget):
         painter.restore()
 
     def _draw_expertise_lamp(self, painter):
-        """Draws the central lamp, in either an 'on' or 'off' state."""
+        """Draws a compact, stylized lamp centered at the origin."""
         painter.save()
 
-        base_width = 90
-        base_height = 20
-        base_rect = QRectF(-base_width / 2, 0, base_width, base_height)
-        bulb_center = QPointF(0, -100)
-        bulb_radius = 20
+        lamp_height = 40
+        shade_top_width = 30
+        shade_bottom_width = 50
 
-        # Draw differently based on the 'on' state
+        # Glow effect (drawn first to be in the back)
         if self.is_lamp_on:
-            # --- ON STATE ---
-            # Glow
-            glow_radius = bulb_radius * 3.5
-            gradient = QRadialGradient(bulb_center, glow_radius)
-            gradient.setColorAt(0, QColor(255, 255, 230, 220))
-            gradient.setColorAt(0.7, QColor(255, 220, 100, 100))
+            glow_center = QPointF(0, 0)
+            glow_radius = shade_bottom_width * 1.2
+            gradient = QRadialGradient(glow_center, glow_radius)
+            gradient.setColorAt(0, QColor(255, 255, 224, 180))
+            gradient.setColorAt(0.8, QColor(255, 220, 100, 40))
             gradient.setColorAt(1, QColor(13, 17, 23, 0))
-            painter.setBrush(QBrush(gradient))
+            painter.setBrush(gradient)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(bulb_center, glow_radius, glow_radius)
-            # Bulb
-            painter.setBrush(QColor("#FFFFF0"))
-            painter.drawEllipse(bulb_center, bulb_radius, bulb_radius)
-        else:
-            # --- OFF STATE ---
-            painter.setBrush(QColor("#505050"))
-            painter.drawEllipse(bulb_center, bulb_radius, bulb_radius)
+            painter.drawEllipse(glow_center, glow_radius, glow_radius)
 
-        # --- SHARED COMPONENTS (Base, Stand, Text) ---
-        # Base
-        base_gradient = QLinearGradient(base_rect.topLeft(), base_rect.bottomLeft())
-        base_gradient.setColorAt(0, QColor("#888888"))
-        base_gradient.setColorAt(0.5, QColor("#555555"))
-        base_gradient.setColorAt(1, QColor("#444444"))
-        painter.setBrush(base_gradient)
-        painter.setPen(QPen(QColor("#222222"), 1))
-        painter.drawRoundedRect(base_rect, 5, 5)
-
-        # Stand
+        # Lampshade shape
         path = QPainterPath()
-        path.moveTo(0, 0)
-        path.quadTo(QPointF(25, -50), QPointF(0, -90))
-        pen = QPen()
-        pen.setWidth(10)
-        stand_gradient = QLinearGradient(0, 0, 0, -90)
-        stand_gradient.setColorAt(0, QColor("#999999"))
-        stand_gradient.setColorAt(1, QColor("#6E6E6E"))
-        pen.setBrush(stand_gradient)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
+        path.moveTo(-shade_top_width / 2, -lamp_height)
+        path.lineTo(-shade_bottom_width / 2, 0)
+        path.arcTo(QRectF(-shade_bottom_width / 2, -5, shade_bottom_width, 10), 180, -180)
+        path.lineTo(shade_top_width / 2, -lamp_height)
+        path.closeSubpath()
+
+        shade_gradient = QLinearGradient(0, -lamp_height, 0, 0)
+        shade_gradient.setColorAt(0, QColor("#AAAAAA"))
+        shade_gradient.setColorAt(1, QColor("#666666"))
+        painter.setBrush(shade_gradient)
+        painter.setPen(QPen(QColor("#333333"), 1))
         painter.drawPath(path)
 
-        # Text
+        # Text "Expertise" below the lamp
         painter.setPen(QColor("#FFFFFF"))
         font = QFont("Roboto", 10, QFont.Weight.Bold)
         painter.setFont(font)
-        painter.drawText(base_rect, Qt.AlignmentFlag.AlignCenter, "Expertise")
+        painter.drawText(QRectF(-50, 10, 100, 20), Qt.AlignmentFlag.AlignCenter, "Expertise")
 
         painter.restore()
 
