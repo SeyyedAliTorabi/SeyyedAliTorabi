@@ -102,9 +102,9 @@ class GalacticWidget(QWidget):
             x, y = radius * math.cos(angle), radius * math.sin(angle)
             self.stars.append({
                 'pos': QPointF(x, y),
-                'base_alpha': random.randint(20, 90),
+                'base_alpha': random.randint(40, 140),  # Increased brightness
                 'current_alpha': 0,
-                'speed': random.uniform(0.01, 0.03),
+                'speed': random.uniform(0.02, 0.05),   # Increased speed
                 'offset': random.uniform(0, 2 * math.pi)
             })
 
@@ -119,9 +119,11 @@ class GalacticWidget(QWidget):
                     course['moon_angle'] -= 2 * math.pi
         # Update star twinkle
         for star in self.stars:
-            amplitude = star['base_alpha'] / 2
+            # Make pulsation more pronounced
+            amplitude = star['base_alpha'] * 0.8
             pulsation = math.sin(self.animation_time * star['speed'] + star['offset']) * amplitude
-            star['current_alpha'] = star['base_alpha'] + pulsation
+            # Clamp the alpha value between 0 and 255
+            star['current_alpha'] = max(0, min(255, star['base_alpha'] + pulsation))
 
         # Update layer rotation
         self.layer_rotation_angle += 0.001
@@ -271,45 +273,54 @@ class GalacticWidget(QWidget):
         painter.restore()
 
     def _draw_expertise_lamp(self, painter):
-        """Draws a compact, stylized lamp centered at the origin."""
+        """Draws a compact, circular lamp icon centered at the origin."""
         painter.save()
 
-        lamp_height = 40
-        shade_top_width = 30
-        shade_bottom_width = 50
+        center_radius = 40
 
-        # Glow effect (drawn first to be in the back)
+        # Draw the main "glass" bulb and glow, centered at (0,0)
         if self.is_lamp_on:
-            glow_center = QPointF(0, 0)
-            glow_radius = shade_bottom_width * 1.2
-            gradient = QRadialGradient(glow_center, glow_radius)
-            gradient.setColorAt(0, QColor(255, 255, 224, 180))
-            gradient.setColorAt(0.8, QColor(255, 220, 100, 40))
-            gradient.setColorAt(1, QColor(13, 17, 23, 0))
-            painter.setBrush(gradient)
+            # Glowing effect
+            glow_gradient = QRadialGradient(0, 0, center_radius * 1.5)
+            glow_gradient.setColorAt(0, QColor(255, 255, 224, 150))
+            glow_gradient.setColorAt(1, QColor(13, 17, 23, 0))
+            painter.setBrush(glow_gradient)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(glow_center, glow_radius, glow_radius)
+            painter.drawEllipse(QPointF(0, 0), center_radius * 1.5, center_radius * 1.5)
 
-        # Lampshade shape
-        path = QPainterPath()
-        path.moveTo(-shade_top_width / 2, -lamp_height)
-        path.lineTo(-shade_bottom_width / 2, 0)
-        path.arcTo(QRectF(-shade_bottom_width / 2, -5, shade_bottom_width, 10), 180, -180)
-        path.lineTo(shade_top_width / 2, -lamp_height)
-        path.closeSubpath()
+            # Glass bulb tint
+            painter.setBrush(QColor(240, 240, 255, 50))
+            painter.setPen(QPen(QColor(200, 200, 255, 100)))
+            painter.drawEllipse(QPointF(0, 0), center_radius, center_radius)
 
-        shade_gradient = QLinearGradient(0, -lamp_height, 0, 0)
-        shade_gradient.setColorAt(0, QColor("#AAAAAA"))
-        shade_gradient.setColorAt(1, QColor("#666666"))
-        painter.setBrush(shade_gradient)
-        painter.setPen(QPen(QColor("#333333"), 1))
-        painter.drawPath(path)
+            # Bright filament
+            filament_pen = QPen(QColor("#ffd700"))
+            filament_pen.setWidth(2)
+            painter.setPen(filament_pen)
+            path = QPainterPath()
+            path.moveTo(-8, 0)
+            path.cubicTo(QPointF(-4, -8), QPointF(4, 8), QPointF(8, 0))
+            painter.drawPath(path)
+        else:  # Lamp is off
+            painter.setBrush(QColor(80, 80, 90, 100))
+            painter.setPen(QPen(QColor(120, 120, 130)))
+            painter.drawEllipse(QPointF(0, 0), center_radius, center_radius)
+            # Dark filament
+            painter.setPen(QPen(QColor(100, 100, 80, 200)))
+            path = QPainterPath()
+            path.moveTo(-8, 0)
+            path.cubicTo(QPointF(-4, -8), QPointF(4, 8), QPointF(8, 0))
+            painter.drawPath(path)
 
-        # Text "Expertise" below the lamp
-        painter.setPen(QColor("#FFFFFF"))
+        # Text "Expertise" - always visible, inside the circle
+        text_rect = QRectF(-center_radius, -center_radius, center_radius * 2, center_radius * 2)
         font = QFont("Roboto", 10, QFont.Weight.Bold)
         painter.setFont(font)
-        painter.drawText(QRectF(-50, 10, 100, 20), Qt.AlignmentFlag.AlignCenter, "Expertise")
+        # Draw text with a slight shadow for readability
+        painter.setPen(QColor(0, 0, 0, 150))
+        painter.drawText(text_rect.translated(1, 1), Qt.AlignmentFlag.AlignCenter, "Expertise")
+        painter.setPen(QColor("#FFFFFF"))
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, "Expertise")
 
         painter.restore()
 
