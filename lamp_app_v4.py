@@ -29,7 +29,7 @@ class GalacticWidget(QWidget):
         self.courses = [
             {
                 "id": "course_1", "name": "Intro to Python", "progress": 0.1,
-                "light_required": 0.0, # Visible from the start
+                "completion_status": "not_started", # not_started, in_progress, completed
                 "lessons": [
                     {"name": "Chapter 1: Basic Syntax", "completed": False},
                     {"name": "Chapter 2: Data Types", "completed": False},
@@ -38,7 +38,7 @@ class GalacticWidget(QWidget):
             },
             {
                 "id": "course_2", "name": "Data Structures", "progress": 0.3,
-                "light_required": 0.1, # Requires 10% total completion
+                "completion_status": "not_started",
                 "lessons": [
                     {"name": "Topic 1: Arrays & Lists", "completed": False},
                     {"name": "Topic 2: Stacks & Queues", "completed": False},
@@ -46,7 +46,7 @@ class GalacticWidget(QWidget):
             },
             {
                 "id": "course_3", "name": "Algorithms", "progress": 0.5,
-                "light_required": 0.25, # Requires 25% total completion
+                "completion_status": "not_started",
                 "lessons": [
                     {"name": "Part 1: Sorting Algorithms", "completed": False},
                     {"name": "Part 2: Searching Algorithms", "completed": False},
@@ -55,7 +55,7 @@ class GalacticWidget(QWidget):
             },
             {
                 "id": "course_4", "name": "Machine Learning", "progress": 0.75,
-                "light_required": 0.5, # Requires 50% total completion
+                "completion_status": "not_started",
                 "lessons": [
                     {"name": "Intro to ML", "completed": False},
                     {"name": "Supervised Learning", "completed": False},
@@ -64,39 +64,36 @@ class GalacticWidget(QWidget):
             },
             {
                 "id": "course_5", "name": "Advanced AI", "progress": 0.9,
-                "light_required": 0.75, # Requires 75% total completion
+                "completion_status": "not_started",
                 "lessons": [
                     {"name": "Neural Networks", "completed": False},
                     {"name": "Deep Learning", "completed": False},
                 ]
             },
         ]
+        # Add animation state to each course
         for course in self.courses:
             course['moon_angle'] = random.uniform(0, 2 * math.pi)
             course['is_paused'] = False
-            course['completion_status'] = 'not_started'
-
 
         self.spiral_points = []
         self.interactive_items = []
         self.hovered_item_id = None
+        self.user_progress = 0.6
         self.stars = []
         self._generate_stars(300, 1000)
 
-        # NEW: Light-based properties
-        self.lamp_brightness = 0.0 # Overall progress, from 0.0 to 1.0
-        self._calculate_lamp_brightness() # Initial calculation
-
+        # Global animation timer
         self.animation_time = 0
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self._update_animation)
         self.animation_timer.start(33)
+
+        # State for final completion effect
+        self.is_lamp_on = False
+        self.is_final_effect_active = False
+        self.effect_progress = 0.0
         self.layer_rotation_angle = 0.0
-
-        # State for final blink effect
-        self.is_fully_complete = False
-        self.blink_cycle_time = 0
-
 
     def _generate_stars(self, num_stars, max_radius):
         """Generates a list of stars with random positions and twinkle properties."""
@@ -106,30 +103,39 @@ class GalacticWidget(QWidget):
             x, y = radius * math.cos(angle), radius * math.sin(angle)
             self.stars.append({
                 'pos': QPointF(x, y),
-                'base_alpha': random.randint(40, 140),
+                'base_alpha': random.randint(40, 140),  # Increased brightness
                 'current_alpha': 0,
-                'speed': random.uniform(0.02, 0.05),
+                'speed': random.uniform(0.02, 0.05),   # Increased speed
                 'offset': random.uniform(0, 2 * math.pi)
             })
 
     def _update_animation(self):
         """Updates animation state for moons and stars."""
         self.animation_time += 1
+        # Update moon angles
         for course in self.courses:
             if not course.get('is_paused', False):
                 course['moon_angle'] += 0.03
                 if course['moon_angle'] > 2 * math.pi:
                     course['moon_angle'] -= 2 * math.pi
+        # Update star twinkle
         for star in self.stars:
+            # Make pulsation more pronounced
             amplitude = star['base_alpha'] * 0.8
             pulsation = math.sin(self.animation_time * star['speed'] + star['offset']) * amplitude
+            # Clamp the alpha value between 0 and 255
             star['current_alpha'] = max(0, min(255, star['base_alpha'] + pulsation))
 
+        # Update layer rotation
         self.layer_rotation_angle += 0.001
 
-        # Update final blink effect
-        if self.is_fully_complete:
-            self.blink_cycle_time = (self.blink_cycle_time + 1) % 100 # ~3 second cycle
+        # Update final effect animation
+        if self.is_final_effect_active:
+            self.effect_progress += 0.005  # Speed of the effect
+            if self.effect_progress >= 1.0:
+                self.effect_progress = 1.0
+                self.is_final_effect_active = False
+                self.is_lamp_on = True
 
         self.update()
 
@@ -148,35 +154,32 @@ class GalacticWidget(QWidget):
 
         self._draw_starfield(painter)
         self._draw_galactic_layers(painter)
-        self._draw_spiral_path(painter) # Refactored
-        self._draw_planets_and_moons(painter) # Refactored
-        self._draw_expertise_lamp(painter) # Refactored
+        self._draw_spiral_path(painter)
+        self._draw_planets_and_moons(painter)
+        self._draw_expertise_lamp(painter)
+        self._draw_completion_effect(painter)
 
     def mouseMoveEvent(self, event):
         painter_pos = event.position() - QPointF(self.width() / 2, self.height() / 2)
         new_hovered_id = None
-        # Only check against visible items
         for item in reversed(self.interactive_items):
-            course_id_for_item = item['id']
-            if 'moon' in item['type']:
-                course_id_for_item = "_".join(item['id'].split('_')[1:])
+            if item['rect'].contains(painter_pos):
+                new_hovered_id = item['id']
+                break
 
-            course = next((c for c in self.courses if c['id'] == course_id_for_item), None)
-            if course and self.lamp_brightness >= course['light_required']:
-                 if item['rect'].contains(painter_pos):
-                    new_hovered_id = item['id']
-                    break
-
+        # Determine which planet is being hovered over (directly or via its moons)
         hovered_planet_id = None
         if new_hovered_id:
             if 'course' in new_hovered_id:
                 hovered_planet_id = new_hovered_id
-            else:
+            else: # It's a moon
                 hovered_planet_id = "_".join(new_hovered_id.split('_')[1:])
 
+        # Update the pause state for each course
         for course in self.courses:
             course['is_paused'] = (course['id'] == hovered_planet_id)
 
+        # Update visual hover effect for the specific item
         if self.hovered_item_id != new_hovered_id:
             self.hovered_item_id = new_hovered_id
             if new_hovered_id is None:
@@ -201,24 +204,41 @@ class GalacticWidget(QWidget):
                     self.itemClicked.emit(item['id'])
                     break
 
-    def _calculate_lamp_brightness(self):
-        """Calculates the total progress across all lessons."""
-        total_lessons = 0
-        completed_lessons = 0
-        for course in self.courses:
-            total_lessons += len(course['lessons'])
-            completed_lessons += sum(1 for lesson in course['lessons'] if lesson['completed'])
+    def _draw_completion_effect(self, painter):
+        """Draws a light pulse traveling along the spiral."""
+        if not self.is_final_effect_active or not self.spiral_points:
+            return
 
-        if total_lessons == 0:
-            self.lamp_brightness = 0.0
-        else:
-            self.lamp_brightness = completed_lessons / total_lessons
+        painter.save()
 
-        print(f"Lamp brightness updated to: {self.lamp_brightness:.2f}")
+        progress_index = int((len(self.spiral_points) - 1) * self.effect_progress)
+        pos = self.spiral_points[progress_index]
 
+        radius = 20
+        gradient = QRadialGradient(pos, radius)
+        gradient.setColorAt(0, QColor(255, 255, 255, 255))
+        gradient.setColorAt(0.5, QColor(255, 255, 100, 150))
+        gradient.setColorAt(1, QColor(255, 255, 0, 0))
+        painter.setBrush(gradient)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(pos, radius, radius)
+
+        painter.restore()
+
+    def _check_for_full_completion(self):
+        """Checks if all courses are completed and triggers the final effect."""
+        if self.is_final_effect_active or self.is_lamp_on:
+            return
+
+        all_done = all(course.get('completion_status') == 'completed' for course in self.courses)
+
+        if all_done:
+            print("All courses completed! Starting final effect...")
+            self.is_final_effect_active = True
+            self.effect_progress = 0.0
 
     def update_course_data(self, updated_data):
-        """Updates course data, recalculates brightness, and checks statuses."""
+        """Finds the course by ID and updates its data and completion status."""
         course_id = updated_data.get('id')
         if not course_id:
             return
@@ -227,27 +247,25 @@ class GalacticWidget(QWidget):
             if course['id'] == course_id:
                 self.courses[i]['lessons'] = updated_data['lessons']
 
-                # Recalculate completion status for this specific course
-                completed_count = sum(1 for lesson in self.courses[i]['lessons'] if lesson['completed'])
-                total_count = len(self.courses[i]['lessons'])
+                completed_lessons = sum(1 for lesson in self.courses[i]['lessons'] if lesson['completed'])
+                total_lessons = len(self.courses[i]['lessons'])
 
-                if total_count == 0: status = 'not_started'
-                elif completed_count == total_count: status = 'completed'
-                elif completed_count > 0: status = 'in_progress'
-                else: status = 'not_started'
+                if total_lessons == 0:
+                    status = 'not_started'
+                elif completed_lessons == total_lessons:
+                    status = 'completed'
+                elif completed_lessons > 0:
+                    status = 'in_progress'
+                else:
+                    status = 'not_started'
+
                 self.courses[i]['completion_status'] = status
-
-                # Recalculate overall lamp brightness
-                self._calculate_lamp_brightness()
-
-                # Check if all courses are complete
-                if self.lamp_brightness >= 1.0:
-                    self.is_fully_complete = True
-
-                self.update()
+                self.update() # Repaint to show visual feedback
+                self._check_for_full_completion()
                 break
 
     def _draw_starfield(self, painter):
+        """Draws the twinkling starfield background."""
         painter.save()
         painter.setPen(Qt.PenStyle.NoPen)
         for star in self.stars:
@@ -256,48 +274,50 @@ class GalacticWidget(QWidget):
         painter.restore()
 
     def _draw_expertise_lamp(self, painter):
-        """Draws the central lamp, with appearance tied to brightness."""
+        """Draws a compact, circular lamp icon centered at the origin."""
         painter.save()
+
         center_radius = 40
 
-        # Glow is proportional to brightness
-        glow_radius = center_radius * (1 + self.lamp_brightness * 1.5)
-        glow_alpha = int(50 + self.lamp_brightness * 150)
+        # Draw the main "glass" bulb and glow, centered at (0,0)
+        if self.is_lamp_on:
+            # Glowing effect
+            glow_gradient = QRadialGradient(0, 0, center_radius * 1.5)
+            glow_gradient.setColorAt(0, QColor(255, 255, 224, 150))
+            glow_gradient.setColorAt(1, QColor(13, 17, 23, 0))
+            painter.setBrush(glow_gradient)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(QPointF(0, 0), center_radius * 1.5, center_radius * 1.5)
 
-        # Add blink effect on full completion
-        if self.is_fully_complete:
-            # A pulse that goes from 0 to 1 and back to 0 over the cycle time
-            pulse = abs(50 - self.blink_cycle_time) / 50.0 # Creates a dip in the middle
-            glow_alpha = int(glow_alpha * (0.6 + 0.4 * pulse)) # Modulate alpha
-            glow_radius = glow_radius * (0.8 + 0.2 * pulse) # Modulate radius
+            # Glass bulb tint
+            painter.setBrush(QColor(240, 240, 255, 50))
+            painter.setPen(QPen(QColor(200, 200, 255, 100)))
+            painter.drawEllipse(QPointF(0, 0), center_radius, center_radius)
 
+            # Bright filament
+            filament_pen = QPen(QColor("#ffd700"))
+            filament_pen.setWidth(2)
+            painter.setPen(filament_pen)
+            path = QPainterPath()
+            path.moveTo(-8, 0)
+            path.cubicTo(QPointF(-4, -8), QPointF(4, 8), QPointF(8, 0))
+            painter.drawPath(path)
+        else:  # Lamp is off
+            painter.setBrush(QColor(80, 80, 90, 100))
+            painter.setPen(QPen(QColor(120, 120, 130)))
+            painter.drawEllipse(QPointF(0, 0), center_radius, center_radius)
+            # Dark filament
+            painter.setPen(QPen(QColor(100, 100, 80, 200)))
+            path = QPainterPath()
+            path.moveTo(-8, 0)
+            path.cubicTo(QPointF(-4, -8), QPointF(4, 8), QPointF(8, 0))
+            painter.drawPath(path)
 
-        glow_gradient = QRadialGradient(0, 0, glow_radius)
-        glow_gradient.setColorAt(0, QColor(255, 255, 224, glow_alpha))
-        glow_gradient.setColorAt(1, QColor(13, 17, 23, 0))
-        painter.setBrush(glow_gradient)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QPointF(0, 0), glow_radius, glow_radius)
-
-        # Base of the lamp
-        painter.setBrush(QColor(80, 80, 90, 100))
-        painter.setPen(QPen(QColor(120, 120, 130)))
-        painter.drawEllipse(QPointF(0, 0), center_radius, center_radius)
-
-        # Filament brightness
-        filament_color = QColor.fromHsvF(0.15, 0.8, 0.5 + self.lamp_brightness * 0.5, 1.0)
-        filament_pen = QPen(filament_color)
-        filament_pen.setWidth(int(1 + self.lamp_brightness * 2))
-        painter.setPen(filament_pen)
-        path = QPainterPath()
-        path.moveTo(-8, 0)
-        path.cubicTo(QPointF(-4, -8), QPointF(4, 8), QPointF(8, 0))
-        painter.drawPath(path)
-
-        # Text
+        # Text "Expertise" - always visible, inside the circle
         text_rect = QRectF(-center_radius, -center_radius, center_radius * 2, center_radius * 2)
         font = QFont("Roboto", 10, QFont.Weight.Bold)
         painter.setFont(font)
+        # Draw text with a slight shadow for readability
         painter.setPen(QColor(0, 0, 0, 150))
         painter.drawText(text_rect.translated(1, 1), Qt.AlignmentFlag.AlignCenter, "Expertise")
         painter.setPen(QColor("#FFFFFF"))
@@ -321,63 +341,43 @@ class GalacticWidget(QWidget):
         self.spiral_points = points
 
     def _draw_spiral_path(self, painter):
-        """Draws the spiral path, revealing it based on lamp brightness."""
         painter.save()
         if not self.spiral_points:
             painter.restore()
             return
 
+        # Define two sets of colors for the gradient
+        uncompleted_start_color, uncompleted_end_color = QColor("#8A2BE2"), QColor("#FF8C00")
+        completed_start_color, completed_end_color = QColor("#A992F5"), QColor("#FFB74D")
+
         pen = QPen()
         pen.setWidth(3)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
 
-        # Find the maximum progress of a visible course
-        max_visible_progress = 0.0
-        for course in self.courses:
-            if self.lamp_brightness >= course['light_required']:
-                max_visible_progress = max(max_visible_progress, course['progress'])
+        progress_index = int((len(self.spiral_points) - 1) * self.user_progress)
 
-        # The length of the visible path is determined by the furthest visible planet
-        visible_path_length = int((len(self.spiral_points) - 1) * max_visible_progress)
+        # Draw the completed part of the path
+        for i in range(progress_index):
+            progress = i / (len(self.spiral_points) - 1)
+            r = int(completed_start_color.red() + (completed_end_color.red() - completed_start_color.red()) * progress)
+            g = int(completed_start_color.green() + (completed_end_color.green() - completed_start_color.green()) * progress)
+            b = int(completed_start_color.blue() + (completed_end_color.blue() - completed_start_color.blue()) * progress)
+            pen.setColor(QColor(r, g, b))
+            painter.setPen(pen)
+            painter.drawLine(self.spiral_points[i], self.spiral_points[i+1])
 
-        # Gradient colors
-        start_color, end_color = QColor("#8A2BE2"), QColor("#FF8C00")
-
-        for i in range(visible_path_length):
-            # The alpha of the segment is based on the light level of the *next* course on the path
-            # Find the course this segment leads to
-            segment_progress = (i + 1) / (len(self.spiral_points) - 1)
-
-            # Find the course that this segment belongs to
-            target_course = None
-            for c in sorted(self.courses, key=lambda x: x['progress']):
-                if segment_progress <= c['progress']:
-                    target_course = c
-                    break
-            if not target_course: # For the last part of the spiral
-                 target_course = self.courses[-1]
-
-
-            # Calculate alpha based on how much our light exceeds the requirement
-            light_needed = target_course['light_required']
-            alpha = 0
-            if self.lamp_brightness >= light_needed:
-                # Fade in effect
-                excess_light = self.lamp_brightness - light_needed
-                alpha = int(min(1.0, excess_light / 0.1) * 255) # Fade in over 10% excess light
-
-            # Gradient color calculation
-            progress_ratio = i / (len(self.spiral_points) - 1)
-            r = int(start_color.red() + (end_color.red() - start_color.red()) * progress_ratio)
-            g = int(start_color.green() + (end_color.green() - start_color.green()) * progress_ratio)
-            b = int(start_color.blue() + (end_color.blue() - start_color.blue()) * progress_ratio)
-
-            pen.setColor(QColor(r, g, b, alpha))
+        # Draw the uncompleted part of the path
+        for i in range(progress_index, len(self.spiral_points) - 1):
+            progress = i / (len(self.spiral_points) - 1)
+            r = int(uncompleted_start_color.red() + (uncompleted_end_color.red() - uncompleted_start_color.red()) * progress)
+            g = int(uncompleted_start_color.green() + (uncompleted_end_color.green() - uncompleted_start_color.green()) * progress)
+            b = int(uncompleted_start_color.blue() + (uncompleted_end_color.blue() - uncompleted_start_color.blue()) * progress)
+            pen.setColor(QColor(r, g, b))
             painter.setPen(pen)
             painter.drawLine(self.spiral_points[i], self.spiral_points[i+1])
 
         start_point = self.spiral_points[0]
-        painter.setPen(QColor(255, 255, 255, 200))
+        painter.setPen(QColor(Qt.GlobalColor.white))
         painter.setFont(QFont("Roboto", 10))
         painter.drawText(int(start_point.x()), int(start_point.y()) - 20, "Start")
         painter.restore()
@@ -391,40 +391,34 @@ class GalacticWidget(QWidget):
         base_planet_radius, base_moon_radius, moon_orbit_radius = 14, 6, 22
 
         for course in self.courses:
-            light_needed = course['light_required']
-            if self.lamp_brightness < light_needed:
-                continue # Skip drawing this planet if not illuminated
-
-            # Calculate alpha based on how much light exceeds the requirement
-            excess_light = self.lamp_brightness - light_needed
-            alpha = int(min(1.0, excess_light / 0.1) * 255) # Fade in over 10%
-
             point_index = int(course["progress"] * (len(self.spiral_points) - 1))
             planet_pos = self.spiral_points[point_index]
 
+            # --- Planet ---
             is_hovered = (course['id'] == self.hovered_item_id)
             planet_radius = base_planet_radius * 1.5 if is_hovered else base_planet_radius
-
-            planet_color = QColor("#a29bfe")
-            planet_color.setAlpha(alpha)
-            painter.setBrush(planet_color)
+            painter.setBrush(QColor("#a29bfe"))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(planet_pos, planet_radius, planet_radius)
 
+            # --- Add visual feedback for completion status ---
             status = course.get('completion_status', 'not_started')
-            if status == 'in_progress' or status == 'completed':
-                ring_color = QColor(255, 255, 0) if status == 'in_progress' else QColor(0, 255, 127)
-                ring_color.setAlpha(alpha)
+            if status == 'in_progress':
                 painter.save()
-                pen = QPen(ring_color)
-                if status == 'in_progress':
-                    pulse = (math.sin(self.animation_time * 0.1) + 1) / 2
-                    pen.setWidth(int(2 + pulse * 2))
-                else:
-                    pen.setWidth(3)
+                pen = QPen(QColor(255, 255, 0, 150))
+                pulse = (math.sin(self.animation_time * 0.1) + 1) / 2
+                pen.setWidth(int(2 + pulse * 2))
                 painter.setPen(pen)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawEllipse(planet_pos, planet_radius + (3 if status=='completed' else 0), planet_radius + (3 if status=='completed' else 0))
+                painter.drawEllipse(planet_pos, planet_radius, planet_radius)
+                painter.restore()
+            elif status == 'completed':
+                painter.save()
+                pen = QPen(QColor(0, 255, 127, 200))
+                pen.setWidth(3)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(planet_pos, planet_radius + 3, planet_radius + 3)
                 painter.restore()
 
             planet_rect = QRectF(planet_pos - QPointF(planet_radius, planet_radius), QSizeF(planet_radius*2, planet_radius*2))
@@ -436,21 +430,22 @@ class GalacticWidget(QWidget):
             social_radius = base_moon_radius * 1.5 if is_social_hovered else base_moon_radius
             moon1_angle = course['moon_angle']
             moon1_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(moon1_angle), planet_pos.y() + moon_orbit_radius * math.sin(moon1_angle))
-            social_color = QColor("#55efc4")
-            social_color.setAlpha(alpha)
-            painter.setBrush(social_color)
+            painter.setBrush(QColor("#55efc4"))
             painter.drawEllipse(moon1_pos, social_radius, social_radius)
 
-            # Icon on social moon
-            icon_pen = QPen(QColor(0, 98, 102, alpha))
+            # Draw a simple person icon on the social moon
+            painter.save()
+            icon_pen = QPen(QColor("#006266"))
             icon_pen.setWidthF(0.8)
             painter.setPen(icon_pen)
+            # Head
             head_radius = social_radius * 0.3
             head_center = QPointF(moon1_pos.x(), moon1_pos.y() - social_radius * 0.25)
             painter.drawEllipse(head_center, head_radius, head_radius)
+            # Body
             body_rect = QRectF(head_center.x() - head_radius * 1.5, head_center.y() + head_radius * 0.5, head_radius * 3, head_radius * 2)
             painter.drawArc(body_rect, -30 * 16, -120 * 16)
-
+            painter.restore()
 
             social_rect = QRectF(moon1_pos - QPointF(social_radius, social_radius), QSizeF(social_radius*2, social_radius*2))
             self.interactive_items.append({"id": social_id, "rect": social_rect, "type": "moon_social"})
@@ -460,17 +455,12 @@ class GalacticWidget(QWidget):
             mentor_radius = base_moon_radius * 1.5 if is_mentor_hovered else base_moon_radius
             moon2_angle = course['moon_angle'] + math.pi
             moon2_pos = QPointF(planet_pos.x() + moon_orbit_radius * math.cos(moon2_angle), planet_pos.y() + moon_orbit_radius * math.sin(moon2_angle))
-
-            mentor_color = QColor("#ffeaa7")
-            mentor_color.setAlpha(alpha)
-            painter.setBrush(mentor_color)
-            painter.setPen(Qt.PenStyle.NoPen)
-
             star = QPolygonF()
             for i in range(10):
                 radius = mentor_radius if i % 2 == 0 else mentor_radius / 2.5
                 angle = i * math.pi / 5 - math.pi / 2
                 star.append(QPointF(moon2_pos.x() + radius * math.cos(angle), moon2_pos.y() + radius * math.sin(angle)))
+            painter.setBrush(QColor("#ffeaa7"))
             painter.drawPolygon(star)
             self.interactive_items.append({"id": mentor_id, "rect": star.boundingRect(), "type": "moon_mentor"})
 
@@ -488,6 +478,7 @@ class GalacticWidget(QWidget):
         for i in range(1, num_orbits + 1):
             painter.save()
             radius = max_radius * (i / num_orbits)
+            # Rotate each layer at a different speed for a parallax effect
             rotation_speed_multiplier = (num_orbits - i + 1) * 0.5
             painter.rotate(math.degrees(self.layer_rotation_angle * rotation_speed_multiplier))
             painter.setPen(pen)
@@ -505,22 +496,26 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 900)
         self.setStyleSheet("background-color: #0d1117; color: white;")
 
+        # Main container widget and layout
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(0)
 
+        # Title Label
         title_label = QLabel("The Galactic Learning Path")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #E0E0E0; padding-bottom: 10px;")
         layout.addWidget(title_label)
 
+        # Galactic Widget
         self.galactic_widget = GalacticWidget(self)
         layout.addWidget(self.galactic_widget)
 
         self.setCentralWidget(container)
         self.galactic_widget.itemClicked.connect(self.on_item_clicked)
 
+        # Status Bar (without slogan)
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.setStyleSheet("background-color: #161b22;")
@@ -528,13 +523,10 @@ class MainWindow(QMainWindow):
     def on_item_clicked(self, item_id):
         """Handles the click event from the galactic widget."""
         item_type = ""
-        # This check is now redundant because mouseMoveEvent filters this, but good for safety
         for item in self.galactic_widget.interactive_items:
             if item['id'] == item_id:
                 item_type = item.get('type', "")
                 break
-
-        if not item_type: return
 
         if 'course' in item_type:
             course_data = next((c for c in self.galactic_widget.courses if c['id'] == item_id), None)
@@ -555,9 +547,6 @@ class MainWindow(QMainWindow):
 def main():
     """Main function to run the application."""
     app = QApplication(sys.argv)
-    # Make sure to import necessary dialogs
-    from course_dialog import CourseDialog
-    from chat_dialog import ChatDialog
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
