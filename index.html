@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>داشبورد بیمار - دارویار</title>
+
+    <!-- Google Fonts: Vazirmatn -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- Core Design & Reset --- */
+        :root {
+            --primary-blue: #007bff;
+            --success-green: #28a745;
+            --soft-blue-bg: #e7f5ff;
+            --light-gray-bg: #f8f9fa;
+            --white: #ffffff;
+            --text-color: #212529;
+            --border-radius: 8px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background-color: var(--light-gray-bg);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* --- Layout --- */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        /* --- Header Component --- */
+        .header {
+            background-color: var(--white);
+            padding: 1rem 1.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: var(--primary-blue);
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1rem;
+        }
+
+        /* --- Today's Goal Card --- */
+        .goal-card {
+            background-color: var(--soft-blue-bg);
+            border: 1px dashed var(--primary-blue);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .goal-card span {
+            font-size: 1.5rem;
+        }
+
+        /* --- Medication Schedule Section --- */
+        .schedule {
+            margin-bottom: 2rem;
+        }
+
+        .schedule h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid var(--primary-blue);
+            padding-bottom: 0.5rem;
+        }
+
+        /* --- Medication Card Component --- */
+        .med-card {
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: var(--shadow);
+            transition: opacity 0.3s ease;
+        }
+
+        .med-card h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .med-card p {
+            font-size: 1rem;
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+
+        .med-card.taken {
+            opacity: 0.6;
+        }
+
+        /* --- "Mark as Taken" Button --- */
+        .med-button {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: 'Vazirmatn', sans-serif;
+            color: var(--white);
+            background-color: var(--primary-blue);
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .med-button:hover {
+            background-color: #0056b3;
+        }
+
+        .med-button.taken {
+            background-color: var(--success-green);
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>دارویار</h1>
+            <p>سلام، آقای رضایی</p>
+        </header>
+
+        <main>
+            <!-- Today's Goal -->
+            <div class="goal-card">
+                <span>❤️</span>
+                <p><strong>هدف امروز:</strong> داروهای خود را به موقع مصرف کنید تا فشار خون خود را بهتر کنترل کنید.</p>
+            </div>
+
+            <!-- Morning Schedule -->
+            <section class="schedule">
+                <h2>صبح ☀️</h2>
+                <div class="med-card">
+                    <h3>متفورمین ۵۰۰ میلی‌گرم</h3>
+                    <p>یک قرص، همراه با صبحانه</p>
+                    <button class="med-button">علامت‌گذاری به عنوان مصرف شده</button>
+                </div>
+                <div class="med-card">
+                    <h3>آتورواستاتین ۲۰ میلی‌گرم</h3>
+                    <p>یک قرص، بعد از صبحانه</p>
+                    <button class="med-button">علامت‌گذاری به عنوان مصرف شده</button>
+                </div>
+            </section>
+
+            <!-- Noon Schedule -->
+            <section class="schedule">
+                <h2>ظهر 🏙️</h2>
+                <div class="med-card">
+                    <h3>لوزارتان ۵۰ میلی‌گرم</h3>
+                    <p>یک قرص، همراه با ناهار</p>
+                    <button class="med-button">علامت‌گذاری به عنوان مصرف شده</button>
+                </div>
+            </section>
+
+            <!-- Night Schedule -->
+            <section class="schedule">
+                <h2>شب 🌙</h2>
+                <div class="med-card">
+                    <h3>آسپرین ۸۱ میلی‌گرم</h3>
+                    <p>یک قرص، قبل از خواب</p>
+                    <button class="med-button">علامت‌گذاری به عنوان مصرف شده</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const medButtons = document.querySelectorAll('.med-button');
+
+            medButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // 1. Get the parent card
+                    const card = button.closest('.med-card');
+
+                    // 2. Update button state
+                    button.textContent = 'مصرف شد ✔';
+                    button.classList.add('taken');
+                    button.disabled = true;
+
+                    // 3. Update card state
+                    if (card) {
+                        card.classList.add('taken');
+                    }
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
