@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DaruYar - Your Intelligent Health Companion</title>
+
+    <!-- Google Fonts: Vazirmatn -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <style>
+        /* --- 1. Design System & Variables --- */
+        :root {
+            --primary-gradient: linear-gradient(135deg, #5ee7df 0%, #b621fe 100%);
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --success-color: #10b981;
+            --text-dark: #334155;
+            --text-light: #f8fafc;
+            --water-filled: #3b82f6;
+            --font-family: 'Vazirmatn', sans-serif;
+            --border-radius: 1rem;
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        /* --- 2. CSS Resets & Base Styles --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: #f1f5f9;
+            color: var(--text-dark);
+            line-height: 1.6;
+            padding: 1rem;
+        }
+
+        /* --- 3. Glassmorphism Helper Class --- */
+        .glassmorphic {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow);
+        }
+
+        /* --- 4. Main App Layout --- */
+        .app-container {
+            max-width: 600px;
+            margin: 0 auto;
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        /* --- 5. Header --- */
+        .header {
+            padding: 1.5rem;
+            background: var(--primary-gradient);
+            color: var(--text-light);
+            border-radius: var(--border-radius);
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* --- 6. Smart Scheduler Button --- */
+        .scheduler-button {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-light);
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .scheduler-button:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow);
+        }
+
+        /* --- 7. Water Tracker --- */
+        .water-tracker {
+            padding: 1.5rem;
+            text-align: center;
+            border-radius: var(--border-radius);
+            background: #fff;
+        }
+
+        .water-tracker h2 {
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .water-glasses {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .water-glasses i {
+            font-size: 2.5rem;
+            color: #d1d5db;
+            cursor: pointer;
+            transition: color 0.3s ease, transform 0.3s ease;
+        }
+
+        .water-glasses i:not(.filled):hover {
+            transform: scale(1.1);
+        }
+
+        .water-glasses i.filled {
+            color: var(--water-filled);
+            cursor: default;
+        }
+
+        #water-counter {
+            font-weight: 600;
+        }
+
+        /* --- 8. Timeline --- */
+        .timeline {
+            position: relative;
+            padding: 1rem 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 40px; /* Aligns with the icon center */
+            height: 100%;
+            width: 3px;
+            background-color: #e2e8f0;
+            border-radius: 2px;
+        }
+
+        /* --- 9. Medication Card (Timeline Item) --- */
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .timeline-item-icon {
+            position: absolute;
+            left: 40px;
+            top: 0;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #fff;
+            border: 3px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            z-index: 2;
+            transition: border-color 0.3s ease;
+        }
+
+        .timeline-item.taken .timeline-item-icon {
+            border-color: var(--success-color);
+        }
+
+        .timeline-card {
+            flex-grow: 1;
+            margin-left: 70px;
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            background: #fff;
+            transition: opacity 0.4s ease;
+        }
+
+        .timeline-item.taken .timeline-card {
+            opacity: 0.6;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .med-time {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .med-info h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .med-info p {
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        .progress-container {
+            margin: 1rem 0;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-bottom: 0.25rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background-color: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary-gradient);
+            border-radius: 5px;
+            transition: width 0.5s ease-in-out;
+        }
+
+        .take-button {
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            background-color: #334155;
+            color: var(--text-light);
+        }
+
+        .take-button.taken {
+            background-color: var(--success-color);
+            color: var(--text-light);
+            cursor: default;
+        }
+
+        .take-button .fa-check {
+            margin-left: 0.5rem;
+        }
+
+        /* --- 10. End-of-Day Celebration Card --- */
+        #celebration-card {
+            padding: 2rem;
+            text-align: center;
+            border-radius: var(--border-radius);
+            background: #fff;
+            display: none; /* Initially hidden */
+            animation: pop-in 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        #celebration-card .icon {
+            font-size: 4rem;
+            color: transparent;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        #celebration-card h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        @keyframes pop-in {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+
+        /* --- 11. Settings Modal --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            width: 95%;
+            max-width: 500px;
+            padding: 2rem;
+            position: relative;
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-content h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: var(--text-dark);
+        }
+
+        .modal-close-button {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-dark);
+        }
+
+        .form-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-section h3 {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border-bottom: 2px solid var(--glass-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.5);
+            font-family: var(--font-family);
+            font-size: 1rem;
+        }
+
+        .medication-rule {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .medication-rule:last-child {
+            border-bottom: none;
+        }
+
+        .medication-rule h4 {
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        .modal-action-button {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-light);
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: transform 0.2s ease;
+        }
+        .modal-action-button:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <h1 id="greeting">Good Morning</h1>
+            <p id="health-tip">Tip: Staying hydrated can improve medication absorption.</p>
+        </header>
+
+        <!-- Scheduler Button -->
+        <button class="scheduler-button" id="open-modal-button">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Optimize Your Schedule</span>
+        </button>
+
+        <!-- Water Tracker -->
+        <div class="water-tracker">
+            <h2>Daily Water Intake</h2>
+            <div class="water-glasses" id="water-glasses">
+                <!-- Glasses will be generated by JS -->
+            </div>
+            <p id="water-counter">0 of 8 glasses</p>
+        </div>
+
+        <!-- Timeline -->
+        <main class="timeline" id="timeline">
+            <!-- Medication cards will be dynamically inserted here -->
+        </main>
+
+        <!-- End of Day Celebration -->
+        <div id="celebration-card">
+            <div class="icon">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h2>Well Done!</h2>
+            <p>You've completed your treatment for the day. Keep up the great work!</p>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-content glassmorphic">
+            <button class="modal-close-button" id="close-modal-button">&times;</button>
+            <h2>Smart Scheduler</h2>
+
+            <div class="form-section">
+                <h3><i class="fa-solid fa-sun"></i> Your Daily Routine</h3>
+                <div class="form-group">
+                    <label for="wake-up-time">Wake-up Time</label>
+                    <input type="time" id="wake-up-time" value="07:00">
+                </div>
+                <div class="form-group">
+                    <label for="bedtime">Bedtime</label>
+                    <input type="time" id="bedtime" value="22:00">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fa-solid fa-pills"></i> Your Medication Rules</h3>
+                <div id="medication-rules-container">
+                    <!-- Medication rules will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <button class="modal-action-button" id="calculate-schedule-button">
+                Calculate Optimal Schedule
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- 1. STATE MANAGEMENT ---
+        const AppState = {
+            // For demonstration, use a fixed date for consistent progress bar calculation
+            today: new Date('2025-09-23T01:00:00Z'),
+            medications: [
+                {
+                    id: 1,
+                    name: 'Antibiotic X',
+                    dosage: '500mg',
+                    icon: 'fa-solid fa-capsules',
+                    course: { totalDays: 7, startDate: '2025-09-21' },
+                    constraints: { frequency: 'every', hours: 8, food: 'any' }
+                },
+                {
+                    id: 2,
+                    name: 'Painkiller Z',
+                    dosage: '1 Tablet',
+                    icon: 'fa-solid fa-pills',
+                    course: { totalDays: 10, startDate: '2025-09-18' },
+                    constraints: { frequency: 'every', hours: 12, food: 'with' }
+                },
+                {
+                    id: 3,
+                    name: 'Thyroid Support',
+                    dosage: '25mcg',
+                    icon: 'fa-solid fa-tablets',
+                    course: { totalDays: 30, startDate: '2025-09-01' },
+                    constraints: { frequency: 'once', hours: 24, food: 'empty' }
+                }
+            ],
+            userRoutine: {
+                wakeUp: '07:00',
+                bedtime: '22:00'
+            },
+            schedule: [], // This will hold the calculated {time, medId, taken} objects
+            takenMedsCount: 0,
+            waterIntake: 0,
+            healthTips: [
+                "Tip: Staying hydrated can improve medication absorption.",
+                "Tip: Take medication at the same time each day to build a habit.",
+                "Tip: Never skip a dose, even if you feel better.",
+                "Tip: Store your medicines in a cool, dry place away from sunlight.",
+                "Tip: A balanced diet supports your overall treatment and recovery."
+            ]
+        };
+
+        // --- 2. DOM ELEMENT REFERENCES ---
+        const greetingEl = document.getElementById('greeting');
+        const healthTipEl = document.getElementById('health-tip');
+        const timelineEl = document.getElementById('timeline');
+        const openModalButton = document.getElementById('open-modal-button');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const settingsModal = document.getElementById('settings-modal');
+        const calculateScheduleButton = document.getElementById('calculate-schedule-button');
+        const wakeUpInput = document.getElementById('wake-up-time');
+        const bedtimeInput = document.getElementById('bedtime');
+        const medRulesContainer = document.getElementById('medication-rules-container');
+        const celebrationCard = document.getElementById('celebration-card');
+        const waterGlassesEl = document.getElementById('water-glasses');
+        const waterCounterEl = document.getElementById('water-counter');
+
+        // --- 3. CORE LOGIC ---
+
+        /**
+         * The "Smart" Scheduling Algorithm
+         * This function calculates the medication schedule based on constraints.
+         * For simplicity, it follows a priority-based approach.
+         */
+        function calculateSchedule() {
+            const wakeUpTime = timeToMinutes(AppState.userRoutine.wakeUp);
+            const bedtime = timeToMinutes(AppState.userRoutine.bedtime);
+            let availableSlots = createTimeSlots(wakeUpTime, bedtime);
+
+            const newSchedule = [];
+            const sortedMeds = [...AppState.medications].sort((a, b) => {
+                // Prioritize more restrictive constraints
+                const scoreA = (a.constraints.food !== 'any' ? 10 : 0);
+                const scoreB = (b.constraints.food !== 'any' ? 10 : 0);
+                return scoreB - scoreA;
+            });
+
+            sortedMeds.forEach(med => {
+                let dosesToSchedule = 0;
+                if (med.constraints.frequency === 'once') {
+                    dosesToSchedule = 1;
+                } else if (med.constraints.frequency === 'every') {
+                    dosesToSchedule = Math.floor(24 / med.constraints.hours);
+                }
+
+                if (dosesToSchedule > 0) {
+                    // Handle food constraints
+                    if (med.constraints.food === 'empty') {
+                        // Place it first thing in the morning
+                        const time = wakeUpTime;
+                        newSchedule.push({ time: minutesToTime(time), medId: med.id, taken: false });
+                        markSlotUnavailable(availableSlots, time, 60);
+                        dosesToSchedule--;
+                    } else if (med.constraints.food === 'with') {
+                         // Assume meals at 8 AM, 1 PM, 7 PM
+                        const mealTimes = [8 * 60, 13 * 60, 19 * 60].filter(t => t >= wakeUpTime && t <= bedtime);
+                        mealTimes.slice(0, dosesToSchedule).forEach(time => {
+                            newSchedule.push({ time: minutesToTime(time), medId: med.id, taken: false });
+                            markSlotUnavailable(availableSlots, time, 60);
+                        });
+                        dosesToSchedule -= mealTimes.length;
+                    }
+
+                    // Schedule remaining doses at intervals
+                    if (dosesToSchedule > 0) {
+                        const interval = med.constraints.hours * 60;
+                        let lastDoseTime = findLastDoseTime(newSchedule, med.id, wakeUpTime);
+
+                        for (let i = 0; i < dosesToSchedule; i++) {
+                            let nextDoseTime = lastDoseTime + interval;
+                            let bestSlot = findBestAvailableSlot(availableSlots, nextDoseTime);
+
+                            if (bestSlot > bedtime) {
+                                // if interval goes past bedtime, try placing it earlier
+                                bestSlot = findBestAvailableSlot(availableSlots, bedtime - 60, true);
+                            }
+
+                            if (bestSlot) {
+                                newSchedule.push({ time: minutesToTime(bestSlot), medId: med.id, taken: false });
+                                markSlotUnavailable(availableSlots, bestSlot, 60);
+                                lastDoseTime = bestSlot;
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Sort final schedule by time
+            AppState.schedule = newSchedule.sort((a,b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+            AppState.takenMedsCount = 0; // Reset count on new schedule
+        }
+
+        // --- 4. DYNAMIC RENDERING ---
+
+        /**
+         * Renders the entire timeline based on the AppState.schedule
+         */
+        function renderTimeline() {
+            timelineEl.innerHTML = '';
+            celebrationCard.style.display = 'none';
+
+            if (AppState.schedule.length === 0) {
+                timelineEl.innerHTML = `<p style="text-align:center;">Your schedule is empty. Click "Optimize Your Schedule" to begin.</p>`;
+                return;
+            }
+
+            AppState.schedule.forEach((item, index) => {
+                const med = AppState.medications.find(m => m.id === item.medId);
+                if (!med) return;
+
+                // Calculate progress
+                const startDate = new Date(med.course.startDate + 'T00:00:00Z');
+                // Add one to include the start day itself
+                const currentDay = Math.floor((AppState.today - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                const progressPercent = Math.min(100, (currentDay / med.course.totalDays) * 100);
+
+                const cardHTML = `
+                    <div class="timeline-item ${item.taken ? 'taken' : ''}" data-index="${index}">
+                        <div class="timeline-item-icon">
+                            <i class="${med.icon}"></i>
+                        </div>
+                        <div class="timeline-card">
+                            <div class="card-header">
+                                <div class="med-time">${formatTime(item.time)}</div>
+                                <div class="med-info">
+                                    <h3>${med.name}</h3>
+                                    <p>${med.dosage}</p>
+                                </div>
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-label">
+                                    <span>Treatment Course</span>
+                                    <span>Day ${currentDay} of ${med.course.totalDays}</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
+                                </div>
+                            </div>
+                            <button class="take-button ${item.taken ? 'taken' : ''}">
+                                ${item.taken ? 'Taken <i class="fa-solid fa-check"></i>' : 'Mark as Taken'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                timelineEl.insertAdjacentHTML('beforeend', cardHTML);
+            });
+
+            addTimelineEventListeners();
+        }
+
+        /**
+         * Renders the water tracker UI
+         */
+        function renderWaterTracker() {
+            waterGlassesEl.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
+                const glass = document.createElement('i');
+                glass.className = `fa-solid fa-glass-water ${i < AppState.waterIntake ? 'filled' : ''}`;
+                glass.dataset.index = i;
+                waterGlassesEl.appendChild(glass);
+            }
+            waterCounterEl.textContent = `${AppState.waterIntake} of 8 glasses`;
+            addWaterTrackerListeners();
+        }
+
+        /**
+         * Populates the settings modal with current medication rules
+         */
+        function populateModal() {
+            wakeUpInput.value = AppState.userRoutine.wakeUp;
+            bedtimeInput.value = AppState.userRoutine.bedtime;
+            medRulesContainer.innerHTML = '';
+
+            AppState.medications.forEach(med => {
+                const ruleHTML = `
+                    <div class="medication-rule" data-id="${med.id}">
+                        <h4>${med.name}</h4>
+                        <div class="form-group">
+                            <label>Frequency</label>
+                            <select class="frequency-select">
+                                <option value="every" ${med.constraints.frequency === 'every' ? 'selected' : ''}>Every X Hours</option>
+                                <option value="once" ${med.constraints.frequency === 'once' ? 'selected' : ''}>Once a Day</option>
+                            </select>
+                        </div>
+                        <div class="form-group hours-input" style="display: ${med.constraints.frequency === 'every' ? 'block' : 'none'}">
+                            <label>Hours</label>
+                            <input type="number" class="hours-value" value="${med.constraints.hours || 8}" min="1" max="24">
+                        </div>
+                        <div class="form-group">
+                            <label>Food Relation</label>
+                            <select class="food-select">
+                                <option value="any" ${med.constraints.food === 'any' ? 'selected' : ''}>Any</option>
+                                <option value="with" ${med.constraints.food === 'with' ? 'selected' : ''}>With Food</option>
+                                <option value="empty" ${med.constraints.food === 'empty' ? 'selected' : ''}>On an Empty Stomach</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+                medRulesContainer.insertAdjacentHTML('beforeend', ruleHTML);
+            });
+            addModalRuleListeners();
+        }
+
+        /**
+         * Updates the header greeting and health tip
+         */
+        function updateHeader() {
+            const hour = new Date().getHours();
+            if (hour < 12) {
+                greetingEl.textContent = 'Good Morning';
+            } else if (hour < 18) {
+                greetingEl.textContent = 'Good Afternoon';
+            } else {
+                greetingEl.textContent = 'Good Evening';
+            }
+
+            const randomTip = AppState.healthTips[Math.floor(Math.random() * AppState.healthTips.length)];
+            healthTipEl.textContent = randomTip;
+        }
+
+
+        // --- 5. EVENT LISTENERS ---
+
+        function addTimelineEventListeners() {
+            document.querySelectorAll('.take-button').forEach(button => {
+                if (!button.classList.contains('taken')) {
+                    button.addEventListener('click', handleTakeMedication);
+                }
+            });
+        }
+
+        function addWaterTrackerListeners() {
+            document.querySelectorAll('.water-glasses i:not(.filled)').forEach(glass => {
+                glass.addEventListener('click', handleWaterClick);
+            });
+        }
+
+        function addModalRuleListeners() {
+            document.querySelectorAll('.frequency-select').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const ruleContainer = e.target.closest('.medication-rule');
+                    const hoursInput = ruleContainer.querySelector('.hours-input');
+                    hoursInput.style.display = e.target.value === 'every' ? 'block' : 'none';
+                });
+            });
+        }
+
+        openModalButton.addEventListener('click', () => {
+            populateModal();
+            settingsModal.classList.add('visible');
+        });
+
+        closeModalButton.addEventListener('click', () => {
+            settingsModal.classList.remove('visible');
+        });
+
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                 settingsModal.classList.remove('visible');
+            }
+        });
+
+        calculateScheduleButton.addEventListener('click', () => {
+            // 1. Update state from modal inputs
+            AppState.userRoutine.wakeUp = wakeUpInput.value;
+            AppState.userRoutine.bedtime = bedtimeInput.value;
+
+            document.querySelectorAll('.medication-rule').forEach(ruleEl => {
+                const medId = parseInt(ruleEl.dataset.id);
+                const med = AppState.medications.find(m => m.id === medId);
+                if (med) {
+                    med.constraints.frequency = ruleEl.querySelector('.frequency-select').value;
+                    med.constraints.hours = parseInt(ruleEl.querySelector('.hours-value').value);
+                    med.constraints.food = ruleEl.querySelector('.food-select').value;
+                }
+            });
+
+            // 2. Recalculate and re-render
+            calculateSchedule();
+            renderTimeline();
+
+            // 3. Close modal
+            settingsModal.classList.remove('visible');
+        });
+
+        // --- 6. EVENT HANDLERS ---
+
+        function handleTakeMedication(e) {
+            const button = e.target;
+            const timelineItem = button.closest('.timeline-item');
+            const itemIndex = parseInt(timelineItem.dataset.index);
+
+            // Update state
+            AppState.schedule[itemIndex].taken = true;
+            AppState.takenMedsCount++;
+
+            // Update UI
+            button.innerHTML = 'Taken <i class="fa-solid fa-check"></i>';
+            button.classList.add('taken');
+            timelineItem.classList.add('taken');
+
+            // Make button unclickable
+            button.removeEventListener('click', handleTakeMedication);
+
+            // Check for completion
+            if (AppState.takenMedsCount === AppState.schedule.length) {
+                celebrationCard.style.display = 'block';
+            }
+        }
+
+        function handleWaterClick(e) {
+            const glass = e.target;
+            const index = parseInt(glass.dataset.index);
+
+            // Fill up to the clicked glass
+            AppState.waterIntake = index + 1;
+            renderWaterTracker(); // Re-render to update all glasses and counter
+        }
+
+
+        // --- 7. UTILITY HELPERS ---
+        const timeToMinutes = (time) => {
+            const [hours, minutes] = time.split(':').map(Number);
+            return hours * 60 + minutes;
+        };
+
+        const minutesToTime = (minutes) => {
+            const h = Math.floor(minutes / 60).toString().padStart(2, '0');
+            const m = (minutes % 60).toString().padStart(2, '0');
+            return `${h}:${m}`;
+        };
+
+        const formatTime = (time24) => {
+            const [hours, minutes] = time24.split(':');
+            const h = parseInt(hours);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const formattedHour = h % 12 === 0 ? 12 : h % 12;
+            return `${formattedHour.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+        };
+
+        const createTimeSlots = (start, end) => ({ start, end, unavailable: [] });
+
+        const markSlotUnavailable = (slots, time, duration) => {
+            slots.unavailable.push({ start: time, end: time + duration });
+        };
+
+        const isSlotAvailable = (slots, time, duration) => {
+            if (time < slots.start || time + duration > slots.end) return false;
+            for (const unav of slots.unavailable) {
+                if (time < unav.end && time + duration > unav.start) {
+                    return false; // Overlap
+                }
+            }
+            return true;
+        };
+
+        const findBestAvailableSlot = (slots, targetTime, searchBackwards = false) => {
+            let time = targetTime;
+            while (time >= slots.start && time <= slots.end) {
+                if (isSlotAvailable(slots, time, 60)) {
+                    return time;
+                }
+                time += searchBackwards ? -15 : 15; // check every 15 mins
+            }
+            return null; // No slot found
+        };
+
+        const findLastDoseTime = (schedule, medId, defaultTime) => {
+            const medDoses = schedule.filter(d => d.medId === medId);
+            if(medDoses.length > 0) {
+                return timeToMinutes(medDoses[medDoses.length-1].time);
+            }
+            return defaultTime;
+        };
+
+        // --- 8. INITIALIZATION ---
+        function init() {
+            updateHeader();
+            renderWaterTracker();
+            calculateSchedule();
+            renderTimeline();
+        }
+
+        init();
+    });
+    </script>
+</body>
+</html>
