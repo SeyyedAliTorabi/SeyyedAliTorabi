@@ -68,7 +68,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/uploadfile/")
-async def create_upload_file(file: UploadF ile = File(...), current_user: models.User = Depends(get_current_user)):
+async def create_upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
     df = processing.process_uploaded_file(file, current_user.id)
     return {"filename": file.filename, "dataframe_shape": df.shape}
 
