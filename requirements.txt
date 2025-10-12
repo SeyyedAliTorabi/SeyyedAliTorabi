@@ -8,7 +8,7 @@ tensorflow
 scikit-learn
 pytest
 httpx
-python-jose
+PyJWT
 bcrypt==4.0.1
 lxml
 openpyxl

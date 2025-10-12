@@ -2,8 +2,8 @@ from fastapi import Depends, FastAPI, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 import uvicorn
 from datetime import timedelta
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import jwt
 
 from . import models, schemas, security, database, processing, training, visualization
 
@@ -13,7 +13,15 @@ app = FastAPI()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
+# Dependency
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -25,20 +33,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         if national_id is None:
             raise credentials_exception
         token_data = schemas.TokenData(national_id=national_id)
-    except JWTError:
+    except jwt.PyJWTError:
         raise credentials_exception
     user = db.query(models.User).filter(models.User.national_id == token_data.national_id).first()
     if user is None:
         raise credentials_exception
     return user
-
-# Dependency
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @app.post("/register/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -53,8 +53,8 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 @app.post("/login/", response_model=schemas.Token)
-def login_for_access_token(form_data: schemas.UserCreate, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.national_id == form_data.national_id).first()
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.national_id == form_data.username).first()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
